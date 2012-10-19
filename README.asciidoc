@@ -1,0 +1,89 @@
+homectl - Simple Package Management for ~
+=========================================
+:toc:
+
+Introduction
+------------
+
+homectl is an easy way to keep your various dot-files, configuration files,
+custom shell scripts or add-on packages in your home directory
+version-controlled and organized across multiple machines and in different
+environments.
+
+.Features
+
+  * It automatically conforms to your environment:
+    ** Different shells (bash, zsh).
+    ** Different platforms (Linux, Darwin, probably others).
+    ** Different values of +$HOME+ (no absolute paths, one hard-coded path:
+       +$HOME/.homectl+).
+
+
+  * Split your configuration into "packages":
+    ** Post the common stuff to the Internet, but...
+    ** Keep a private package for your work-related config and scripts.
+    ** Make another package for your open-source development or hobbies.
+    ** Only enable what you need, where you need it.
+
+  * Keep it all version-controlled inside git.
+    ** A single +git clone+ copies your whole environment anywhere you like.
+    ** Use git submodules for 3rd-party packages like +oh-my-zsh+ or obscure
+       Emacs modes.
+    ** Private packages can stay safely outside your homectl git repository.
+
+Prerequisites
+-------------
+
+* You must be using the +bash+ or +zsh+ shell.
+
+* You need recent versions of Python and Git.
+
+* You should already be familiar with Git, since you will be using it to track
+  your own homectl setup.
+
+Quick-Start
+-----------
+
+Installation
+~~~~~~~~~~~~
+
+[source,shell]
+-----------------------------------
+# Get a copy of the latest stable homectl.
+$ git clone git://.../homectl.git
+
+# Create your own homectl setup.
+$ ./homectl/setup.sh ~/homectl-setup
+
+# Link your setup into your home directory.
+$ ~/homectl-setup/deploy.sh
+-----------------------------------
+
+Uninstallation
+~~~~~~~~~~~~~~
+
+This will disable homectl entirely, removing any dot-files in your home
+directory that point to homectl packages.
+
+[source,shell]
+------------------------------------
+$ homectl uninstall
+------------------------------------
+
+Customization
+~~~~~~~~~~~~~
+
+...
+
+Further Reading
+---------------
+
+link:doc/layout.asciidoc[]::
+    How homectl itself is laid out (e.g. what the files, directories and
+    included packages are).
+
+link:doc/packages.asciidoc[]::
+    Describes the anatomy of a homectl package, and how to create your own.
+
+link:doc/devel.asciidoc[]::
+    General information about developing homectl itself.
