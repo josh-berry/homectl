@@ -123,6 +123,20 @@ run-hook() {
     run-hook-script "$hook" tcsh "$pkgdir/$hook.csh" "$@"
 }
 
+enable-internal() {
+    local pkg="$1"
+
+    foreach-dot-file "$pkg" add-dot-link
+    run-hook install "$pkg"
+}
+
+disable-internal() {
+    local pkg="$1"
+
+    foreach-dot-file "$pkg" rm-dot-link
+    run-hook uninstall "$pkg"
+}
+
 
 
 #
@@ -135,11 +149,15 @@ homectl-help() {
 
     if [[ -z "$cmd" ]]; then
         echo "Usage:"
+        echo
         usage-init
+        usage-uninstall
+        echo
         usage-list
         usage-enable
         usage-disable
         usage-refresh
+        echo
         show-usage "help [cmd]"
         echo ""
 
@@ -302,6 +320,26 @@ homectl-deploy() {
 }
 
 ########################################
+# Uninstall
+usage-uninstall() {
+    show-usage "uninstall"
+}
+help-uninstall() {
+    echo ""
+    echo "Completely removes all traces of homectl from your home directory."
+    echo ""
+    echo "It does not, however, touch your homectl setup/Git repository.  If"
+    echo "you accidentally uninstall, just run your deploy.sh script again."
+    echo ""
+}
+homectl-uninstall() {
+    for p in $(homectl-list); do
+        disable-internal "$HOMECTL_DIR/$p"
+    done
+    runf rm -f ~/.homectl
+}
+
+########################################
 # List
 
 usage-list() {
@@ -331,13 +369,10 @@ homectl-enable-one() {
 
     [[ ! -d "$pkg" ]] && die "$pkg: Not a directory"
 
-    foreach-dot-file "$pkg" add-dot-link
-    run-hook install "$pkg"
+    enable-internal "$pkg"
 
-    if [[ "$3" != "--skip-recording" ]]; then
-        run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$HOMECTL_DIR/$name" \
-            || die "Couldn't mark $pkg enabled (as $name)"
-    fi
+    run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$HOMECTL_DIR/$name" \
+        || die "Couldn't mark $pkg enabled (as $name)"
 }
 
 ########################################
@@ -387,8 +422,7 @@ homectl-disable() {
 
         [[ ! -d "$HOMECTL_DIR/$pkg" ]] && die "$pkg: Isn't enabled"
 
-        foreach-dot-file "$HOMECTL_DIR/$pkg" rm-dot-link
-        run-hook uninstall "$HOMECTL_DIR/$pkg"
+        disable-internal "$HOMECTL_DIR/$pkg"
 
         run rm -f "$HOMECTL_DIR/$pkg" || die "Couldn't mark $pkg disabled"
     done
@@ -413,7 +447,7 @@ help-refresh() {
 }
 homectl-refresh() {
     for pkg in $HOMECTL_DIR/*; do
-        homectl-enable-one "$(basename "$pkg")" "$pkg" --skip-recording
+        enable-internal "$pkg"
     done
 }
 
