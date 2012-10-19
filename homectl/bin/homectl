@@ -467,7 +467,7 @@ help-refresh() {
 }
 homectl-refresh() {
     for pkg in $(homectl-list); do
-        enable-internal "$pkg"
+        enable-internal "$HOMECTL_DIR/$pkg"
     done
 }
 
