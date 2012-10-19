@@ -47,10 +47,14 @@ Quick-Start
 Installation
 ~~~~~~~~~~~~
 
-[source,shell]
+NOTE: Before you deploy, you should move your existing shell rc files out of the
+way.  (+.bashrc+, +.zshrc+, etc.)  Otherwise homectl won't be able to install
+its own "loader" files.  [This will eventually be covered by a migration
+script.]
+
 -----------------------------------
 # Get a copy of the latest stable homectl.
-$ git clone git://.../homectl.git
+$ git clone git://github.com/josh-berry/homectl.git
 
 # Create your own homectl setup.
 $ ./homectl/setup.sh ~/homectl-setup
@@ -59,13 +63,21 @@ $ ./homectl/setup.sh ~/homectl-setup
 $ ~/homectl-setup/deploy.sh
 -----------------------------------
 
+.Next Steps:
+
+  * Restart your shell, and use the +homectl+ command to enable and disable
+    packages.
+
+  * Read [XXX] to learn how to create your own homectl packages.
+
+  * Create packages to hold your personal configuration.
+
 Uninstallation
 ~~~~~~~~~~~~~~
 
 This will disable homectl entirely, removing any dot-files in your home
 directory that point to homectl packages.
 
-[source,shell]
 ------------------------------------
 $ homectl uninstall
 ------------------------------------
@@ -78,12 +90,11 @@ Customization
 Further Reading
 ---------------
 
-link:doc/layout.asciidoc[]::
-    How homectl itself is laid out (e.g. what the files, directories and
+Nothing yet, but I need to write docs for:
+
+  * How homectl itself is laid out (e.g. what the files, directories and
     included packages are).
 
-link:doc/packages.asciidoc[]::
-    Describes the anatomy of a homectl package, and how to create your own.
+  * The anatomy of a homectl package, and how to create your own.
 
-link:doc/devel.asciidoc[]::
-    General information about developing homectl itself.
+  * A quick guide to hacking on homectl itself.
