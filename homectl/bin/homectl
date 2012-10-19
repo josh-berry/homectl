@@ -140,6 +140,8 @@ homectl-help() {
         usage-enable
         usage-disable
         usage-refresh
+        show-usage "help [cmd]"
+        echo ""
 
     else
         "usage-$cmd" "$@"
@@ -150,14 +152,20 @@ homectl-help() {
 ########################################
 # Init
 usage-init() {
-    show-usage "init my-homectl-setup [git://my-homectl-clone]"
+    show-usage "init my-homectl-setup [git://my-homectl-fork]"
 }
 help-init() {
     echo ""
     echo "Start a new homectl deployment."
     echo ""
     echo "Creates a new Git repository at the path you specify, and populates"
-    echo "it with a helper script for deploying your setup on new machines."
+    echo "it with a copy of homectl and a helper script for deploying your"
+    echo "setup on new machines."
+    echo ""
+    echo "You can optionally specify a URL to a homectl Git repo, and 'init'"
+    echo "will use that repo instead of the default.  This is only useful if"
+    echo "you work on homectl itself.  Note that if you specify a local"
+    echo "filesystem path for the URL, it HAS to be an absolute path."
     echo ""
 }
 homectl-init() {
@@ -211,15 +219,17 @@ home directory will be removed.
 Additional Notes
 ----------------
 
-A few files and directories have been included here to start you off:
+NOTE: Be sure to check out the homectl documentation for tips on how to create
+your own homectl packages.
+
+A few files and directories have been included here to start you off.
 
 README.asciidoc::
     This file.
 
 homectl/::
     A git submodule containing homectl itself.  It includes the +homectl+
-    command and its accompaniing documentation.  You should read it to help you
-    start customizing your setup.
+    command and its accompaniing documentation.
 
 deploy.sh::
     A handy, one-step script to run on new machines to instantly deploy your
@@ -299,7 +309,7 @@ usage-list() {
 }
 help-list() {
     echo ""
-    echo "Lists the packages that are enabled on your system."
+    echo "Lists the packages that are presently enabled."
     echo ""
 }
 homectl-list() {
@@ -338,11 +348,13 @@ usage-enable() {
 }
 help-enable() {
     echo ""
-    echo "Enables a homectl package, linking it into your home directory and "
-    echo "causing it to be loaded by default."
+    echo "Enables the homectl package stored in the pkg-path directory, "
+    echo "linking it into your home directory and causing it to be loaded "
+    echo "by default."
     echo ""
-    echo "You should pass the directory containing the package to enable as "
-    echo "the argument."
+    echo "If the package contains new shell aliases, changes the PATH, etc.,"
+    echo "you will have to restart any affected programs to pick up the new"
+    echo "features."
     echo ""
 }
 homectl-enable() {
@@ -364,6 +376,9 @@ help-disable() {
     echo ""
     echo "Undoes the effect of the 'enable' command.  Unlinks the enabled"
     echo "package from your home directory, so it won't be loaded by default."
+    echo ""
+    echo "You may have to restart programs this package uses after it is"
+    echo "disabled."
     echo ""
 }
 homectl-disable() {
