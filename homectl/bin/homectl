@@ -198,7 +198,7 @@ homectl-init() {
     runf git submodule init
     runf git submodule add "$homectl_url" homectl
     runf mkdir enable.d
-    runf ln -s ../homectl enable.d/homectl
+    runf ln -s ../homectl/homectl enable.d/homectl
     runf git add enable.d/homectl
 
     echo "Creating README.asciidoc..."
