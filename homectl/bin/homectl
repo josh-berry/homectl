@@ -46,27 +46,27 @@ validate-pkg-name() {
     [[ "$name" == *\ * ]] && die "$name: $validate_pkg_name_msg"
 }
 
-foreach-dot-file() {
+foreach-overlay-file() {
     local pkgdir="$(resolve-path "$1")"
     shift
 
-    local dotdir="$pkgdir/dot"
+    local ovldir="$pkgdir/overlay"
 
-    if [[ -d "$dotdir" ]]; then
-        for f in $(find "$dotdir" -not -type d); do
+    if [[ -d "$ovldir" ]]; then
+        for f in $(find "$ovldir" -not -type d); do
             # We have to do this weird dirname trick with $lnk because $f might
             # itself be a symlink, and we want to make sure we create the link
             # to point at $f itself, and not at what $f points to.
-            tgt_rel="$(echo "$f" |sed "s%$dotdir/%.%g")"
+            tgt_rel="$(resolve-path "$(dirname "$f")" "$ovldir")/$(basename "$f")"
             tgt="$HOME/$tgt_rel"
-            lnk="$(resolve-path "$(dirname "$f")" "$HOME/$(dirname "$base")")/$(basename "$f")"
+            lnk="$(resolve-path "$(dirname "$f")" "$(dirname "$tgt")")/$(basename "$f")"
 
             "$@" "$lnk" "$tgt"
         done
     fi
 }
 
-add-dot-link() {
+add-overlay-link() {
     local lnk="$1"
     local tgt="$2"
 
@@ -88,14 +88,14 @@ add-dot-link() {
     fi
 }
 
-rm-dot-link() {
+rm-overlay-link() {
     local lnk="$1"
     local tgt="$2"
 
     if [[ -L "$tgt" ]] && [[ "$(readlink "$tgt")" == "$lnk" ]]; then
         run rm "$tgt"
     elif [[ -e "$tgt" ]]; then
-        echo "--- skipping $tgt_rel (it was replaced)" >&2
+        echo "--- skipping $tgt (it was replaced)" >&2
     fi
 }
 
@@ -126,14 +126,14 @@ run-hook() {
 enable-internal() {
     local pkg="$1"
 
-    foreach-dot-file "$pkg" add-dot-link
+    foreach-overlay-file "$pkg" add-overlay-link
     run-hook install "$pkg"
 }
 
 disable-internal() {
     local pkg="$1"
 
-    foreach-dot-file "$pkg" rm-dot-link
+    foreach-overlay-file "$pkg" rm-overlay-link
     run-hook uninstall "$pkg"
 }
 
@@ -364,14 +364,16 @@ homectl-ls() {
 homectl-enable-one() {
     local name="$1"
     local pkg="$2"
+    local pkg_tag="$HOMECTL_DIR/$name"
 
     validate-pkg-name "$name"
 
     [[ ! -d "$pkg" ]] && die "$pkg: Not a directory"
+    [[ -L "$pkg_tag" ]] && die "$pkg: Already enabled"
 
     enable-internal "$pkg"
 
-    run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$HOMECTL_DIR/$name" \
+    run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$pkg_tag" \
         || die "Couldn't mark $pkg enabled (as $name)"
 }
 
@@ -446,7 +448,7 @@ help-refresh() {
     echo ""
 }
 homectl-refresh() {
-    for pkg in $HOMECTL_DIR/*; do
+    for pkg in $(homectl-list); do
         enable-internal "$pkg"
     done
 }
