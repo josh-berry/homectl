@@ -118,6 +118,7 @@ run-hook() {
     shift
 
     run-hook-script "$hook" bash "$pkgdir/$hook.sh" "$@"
+    run-hook-script "$hook" bash "$pkgdir/$hook.bash" "$@"
     run-hook-script "$hook" zsh "$pkgdir/$hook.zsh" "$@"
     run-hook-script "$hook" tcsh "$pkgdir/$hook.csh" "$@"
 }

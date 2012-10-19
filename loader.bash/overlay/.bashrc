@@ -58,6 +58,9 @@ homectl-run-hooks() {
         if [[ -e "$pkg/$hook.sh" ]]; then
             source "$pkg/$hook.sh"
         fi
+        if [[ -e "$pkg/$hook.bash" ]]; then
+            source "$pkg/$hook.bash"
+        fi
     done
 }
 
