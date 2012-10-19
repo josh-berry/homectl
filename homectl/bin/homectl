@@ -189,6 +189,7 @@ help-init() {
 homectl-init() {
     local root="$1"
     local homectl_url="$2"
+    local warn_shell=""
 
     [[ -z "$homectl_url" ]] && homectl_url="$DEFAULT_HOMECTL_URL"
 
@@ -199,7 +200,16 @@ homectl-init() {
     runf git submodule add "$homectl_url" homectl
     runf mkdir enable.d
     runf ln -s ../homectl/homectl enable.d/homectl
-    runf git add enable.d/homectl
+
+    if [[ "$SHELL" == *zsh ]]; then
+        runf ln -s ../homectl/loader.zsh enable.d/loader.zsh
+    elif [[ "$SHELL" == *bash ]]; then
+        runf ln -s ../homectl/loader.bash enable.d/loader.bash
+    else
+        warn_shell="1"
+    fi
+
+    runf git add enable.d
 
     echo "Creating README.asciidoc..."
     cat >README.asciidoc <<EOF
@@ -284,6 +294,14 @@ EOF
     echo ">>>"
     echo ">>>     $root/deploy.sh"
     echo ""
+
+    if [[ ! -z "$warn_shell" ]]; then
+        echo "!!! We weren't able to determine what shell \"$SHELL\" is."
+        echo "!!! That means your homectl setup won't have a loader."
+        echo "!!! You will probably need to add or write one before"
+        echo "!!! homectl will be useful."
+        echo ""
+    fi
 }
 
 ########################################
