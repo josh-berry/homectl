@@ -18,7 +18,6 @@ environments.
     ** Different values of +$HOME+ (no absolute paths, one hard-coded path:
        +$HOME/.homectl+).
 
-
   * Split your configuration into "packages":
     ** Post the common stuff to the Internet, but...
     ** Keep a private package for your work-related config and scripts.
@@ -90,11 +89,13 @@ Customization
 Further Reading
 ---------------
 
-Nothing yet, but I need to write docs for:
-
-  * How homectl itself is laid out (e.g. what the files, directories and
+Not yet written::
+    How homectl itself is laid out (e.g. what the files, directories and
     included packages are).
 
-  * The anatomy of a homectl package, and how to create your own.
+Not yet written::
+    The anatomy of a homectl package, and how to create your own.
 
-  * A quick guide to hacking on homectl itself.
+doc/hacking.asciidoc::
+    A quick guide to hacking on homectl itself.  Covers high-level design
+    principles and submitting your own improvements.
