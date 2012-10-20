@@ -176,6 +176,9 @@ subsystem: Title/Short Summary
 Full description of the change, including:
 - What the change is trying to accomplish
 - Why that's a good thing
+
+Please hard-wrap your text at 72 characters, so git log displays it
+correctly.
 ------------------------------------------------------------------------
 
 The *subsystem* is an informal way of identifying the scope of the patch; if it
