@@ -40,9 +40,11 @@ resolve-path() {
 validate_pkg_name_msg="Invalid package name (no slashes, spaces, leading dots)"
 validate-pkg-name() {
     local name="$1"
+
     [[ "$name" == ".*" ]] && die "$name: $validate_pkg_name_msg"
     [[ "$name" == */* ]] && die "$name: $validate_pkg_name_msg"
     [[ "$name" == *\ * ]] && die "$name: $validate_pkg_name_msg"
+    [[ "$name" != *.hcpkg ]] && die "$name: Must have a .hcpkg extension."
 }
 
 foreach-overlay-file() {
@@ -199,12 +201,12 @@ homectl-init() {
     runf git submodule init
     runf git submodule add "$homectl_url" homectl
     runf mkdir enable.d
-    runf ln -s ../homectl/homectl enable.d/homectl
+    runf ln -s ../homectl/homectl.hcpkg enable.d/homectl.hcpkg
 
     if [[ "$SHELL" == *zsh ]]; then
-        runf ln -s ../homectl/loader.zsh enable.d/loader.zsh
+        runf ln -s ../homectl/loader-zsh.hcpkg enable.d/loader-zsh.hcpkg
     elif [[ "$SHELL" == *bash ]]; then
-        runf ln -s ../homectl/loader.bash enable.d/loader.bash
+        runf ln -s ../homectl/loader-bash.hcpkg enable.d/loader-bash.hcpkg
     else
         warn_shell="1"
     fi
@@ -255,7 +257,7 @@ A few files and directories have been included here to start you off.
 README.asciidoc::
     This file.
 
-homectl/::
+homectl.hcpkg/::
     A git submodule containing homectl itself.  It includes the +homectl+
     command and its accompaniing documentation.
 
@@ -281,7 +283,7 @@ EOF
 
 cd "\$(dirname "\$0")"
 git submodule update || exit 1
-exec ./homectl/homectl/bin/homectl deploy enable.d
+exec ./homectl/homectl.hcpkg/bin/homectl deploy enable.d
 EOF
     runf chmod +x deploy.sh
     runf git add deploy.sh
