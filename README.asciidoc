@@ -96,6 +96,6 @@ Not yet written::
 Not yet written::
     The anatomy of a homectl package, and how to create your own.
 
-doc/hacking.asciidoc::
+link:doc/hacking.asciidoc[]::
     A quick guide to hacking on homectl itself.  Covers high-level design
     principles and submitting your own improvements.
