@@ -228,7 +228,6 @@ Quick Deployment
 
 All you have to do is:
 
-[source,shell]
     $ ./deploy.sh
 
 And all your homectl packages, as they are stored here, will be reconsituted.
@@ -240,7 +239,6 @@ uninstall first and then re-deploy.)
 Uninstallation
 --------------
 
-[source,shell]
     $ homectl uninstall
 
 Your Git repository will be left alone but all homectl-created symlinks in your
