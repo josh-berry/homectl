@@ -1,0 +1,241 @@
+How to Customize homectl
+========================
+:toc:
+
+Introduction
+------------
+
+So you've installed homectl according to the README instructions, now what?  How
+do you apply it to your specific setup?  Moreover, how do you do it with a
+minimum of fuss?  This document attempts to answer that question.
+
+Before we begin, you should know two important things:
+
+  . Everything you keep in homectl lives in a *package*, without exception.
+  . Typically, packages live in your *setup*.
+
+You use the +homectl+ command only to *enable* and *disable* packages.  The
+packages themselves provide functionality (e.g. the +homectl+ command
+itself), store your preferences and configuration files, or both.
+
+Splitting Your Stuff Up
+~~~~~~~~~~~~~~~~~~~~~~~
+
+You probably already have a huge mass of scripts, configuration files, and so
+on.  When you split it into packages, think about splitting in the following
+ways:
+
+  * What it does (e.g. emacs vs. screen vs. ssh-agent vs. ...).
+  * What platform or environment it runs on (e.g. Darwin vs. Linux).
+  * What hat you're wearing (e.g. work, personal, charity).
+  * How often you use it (keep rarely-used things out of your environment).
+
+For instance, the author has the following packages (at the moment):
+
+.The Author's homectl Packages
+================================================================================
+darwin.hcpkg::
+    Scripts he only needs on his Mac.
+
+editor.hcpkg::
+    Script for finding and starting an editor, depending on what environment
+    he's working in (GUI, text, ...).
+
+music.hcpkg::
+    Scripts for manipulating his music collection.
+
+my-zsh-extn.hcpkg::
+    His zsh customizations (on top of oh-my-zsh).
+
+oh-my-zsh.hcpkg::
+    A set of extensions to zsh maintained by robbyrussell, plus configuration.
+
+root.hcpkg::
+    Scripts needed only by the root user (e.g. backup scripts).
+
+screen.hcpkg::
+    .screenrc
+
+ssh-agent.hcpkg::
+    Ensures an ssh-agent is available in the author's shell.
+
+work.hcpkg::
+    Scripts and configuration files relevant only to the author's employment.
+
+topgit.hcpkg::
+    A version of the TopGit patch manager, hacked by the author to work on both
+    Darwin and Linux.
+================================================================================
+
+Loader Packages
+~~~~~~~~~~~~~~~
+
+Some packages (called *loader packages*) exist only to provide a way for other
+packages to insert their functionality into your environment.  For example,
+homectl comes with the +loader-bash.hcpkg+ package.  +loader-bash.hcpkg+
+replaces your existing +.bashrc+ and +.bash_profile+ with scripts that do
+nothing but load +bash+ customizations from all the other enabled homectl
+packages.
+
+There is nothing intrinsically special or different about a loader package.
+Typically they have names starting with +loader-+, and several default loaders
+are provided with homectl for your convenience.  With few exceptions, loaders
+are generally responsible for both enforcing and following the conventions in
+this document.
+
+Creating Your Own Package
+-------------------------
+
+To make a homectl package, all you need to do is:
+
+--------------------------------------------------------------------------------
+$ mkdir my-stuff.hcpkg
+--------------------------------------------------------------------------------
+
+You can immediately enable it, like so:
+
+--------------------------------------------------------------------------------
+$ homectl enable my-stuff.hcpkg
+--------------------------------------------------------------------------------
+
+Nothing happens, of course, because the package has nothing in it.  You'll need
+to place some specially-named files and directories inside your package to make
+it do something useful.
+
+The Overlay
+~~~~~~~~~~~
+
+The +overlay/+ directory contains files that will be linked into your home
+directory when you enable the package.  Typically, you would place dot-files
+here (e.g. +.vimrc+, +.screenrc+, etc.).
+
+.Placing a .screenrc into a homectl Package
+================================================================================
+--------------------------------------------------------------------------------
+$ mkdir screen.hcpkg
+$ mkdir screen.hcpkg/overlay
+$ touch screen.hcpkg/overlay/.screenrc
+
+$ homectl enable screen.hcpkg
+ln -s my-setup/screen.hcpkg/overlay/.screenrc /home/me/./.screenrc
+...
+--------------------------------------------------------------------------------
+
+If you place a +.screenrc+ into the overlay, +homectl enable+ will link it into
+your home directory automatically.
+================================================================================
+
+Only individual files are linked; if you create a directory inside +overlay/+, a
+separate directory will be created in +~+, and the files inside the overlay will
+be linked into that directory.
+
+.Subdirectories in the Overlay
+================================================================================
+--------------------------------------------------------------------------------
+$ mkdir unison.hcpkg
+$ mkdir unison.hcpkg/overlay
+$ mkdir unison.hcpkg/overlay/.unison
+$ touch unison.hcpkg/overlay/.unison/default.prf
+
+$ homectl enable unison.hcpkg
+mkdir -p /home/me/.unison
+ln -s ../my-setup/unison.hcpkg/overlay/.unison/default.prf /home/me/.unison/.default.prf
+...
+--------------------------------------------------------------------------------
+
+homectl will create the directory if it doesn't already exist, and place a
+symlink in that directory.  One interesting thing to note is that symlinks
+created by homectl are always relative.  Here, we can see that homectl has
+adjusted the symlink's target path to account for the fact that it lives in a
+subdirectory.
+================================================================================
+
+Install/Uninstall Hooks
+~~~~~~~~~~~~~~~~~~~~~~~
+
+If the files +install+ or +uninstall+ exist and are executable, they will be run
+when +homectl enable+ or +homectl disable+ are run, respectively.
+
++install+ runs after all the overlay symlinks are created.  It should not,
+however, rely on their presence -- if the user has a file in their home
+directory with the same name as a file in the overlay, the symlink will not be
+created (a warning message will be shown to the user instead, and their file
+will be left in place).
+
++uninstall+ runs after all the overlay symlinks have been removed.  Again,
+homectl will not remove files or symlinks it did not place, so you can't rely on
+these files not being present.
+
+Loaders
+-------
+
+Shell (bash, zsh)
+~~~~~~~~~~~~~~~~~
+
+Package File Reference
+----------------------
+
+Used by homectl Itself
+~~~~~~~~~~~~~~~~~~~~~~
+
++overlay/+::
+    Directory that holds files that should be linked into ~.
+
++install+::
+    Executable which runs at +homectl enable+ time, after all the overlay
+    symlinks are created.
+
++uninstall+::
+    Executable which runs at +homectl disable+ time, after all the overlay
+    symlinks have been removed.
+
+Used by All Loaders
+~~~~~~~~~~~~~~~~~~~
+
+By convention, the following files/directories should be recognized and handled
+by every loader.  In practice, not all of them will apply to every loader, and
+this is fine.  Indeed, it is generally acceptable to rely on the shell loaders
+to set the environment appropriately where applicable.
+
++bin/+::
+    Contains scripts or binaries that belong to this package.  Should be added
+    to +PATH+.
+
++lib/+::
++lib64/+::
++lib32/+::
++Frameworks/+::
+    Contains libraries used by binaries in this package.  Should be added to
+    +LD_LIBRARY_PATH+, +DYLD_LIBRARY_PATH+, or other platform-specific
+    environment variables as appropriate.
+
+Used by Shell Loaders
+~~~~~~~~~~~~~~~~~~~~~
+
+For hooks, when multiple file extensions are listed, the files are sourced as
+follows:
+
+  . Files with no extension are sourced by every shell (for those rare cases
+    where a script might work in both csh and sh).
+  . Files with a +.sh+ extension are sourced by both the bash and zsh loaders.
+  . Files with a shell-specific extension are sourced only by that shell.
+
+In addition to the directories in the previous section, shell loaders recognize
+the following hooks:
+
++env+::
++env.sh+::
++env.bash+::
++env.zsh+::
+    Sourced by the shell to set environment variables, in both interactive and
+    non-interactive environments.  By convention, these should not produce any
+    output (normally), nor should they expect any input from the user.  They
+    should, however, run very fast.
+
++shell+::
++shell.sh+::
++shell.bash+::
++shell.zsh+::
+    Sourced by the shell in interactive environments, to add custom functions,
+    change the shell prompt, etc.  These should still run fast, but they are
+    allowed to produce output or expect input.
