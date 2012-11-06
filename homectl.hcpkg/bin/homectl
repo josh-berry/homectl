@@ -1,0 +1,516 @@
+#!/bin/bash
+
+#
+# The homectl manager program
+#
+
+DEFAULT_HOMECTL_URL="git://github.com/josh-berry/homectl.git"
+
+#
+# Internal/utility functions
+#
+
+show-usage() {
+    echo "    homectl $@"
+}
+
+run() {
+    echo "\$ $@"
+    "$@"
+    return $?
+}
+
+runf() {
+    run "$@"
+    local rc=$?
+    if [[ $rc -gt 0 ]]; then
+        die "Failed command (rc = $rc): $@"
+    fi
+}
+
+die() {
+    echo "!!! $@" >&2
+    exit 1
+}
+
+resolve-path() {
+    "$(dirname "$0")/homectl-resolve-path" "$@"
+}
+
+validate_pkg_name_msg="Invalid package name (no slashes, spaces, leading dots)"
+validate-pkg-name() {
+    local name="$1"
+
+    [[ "$name" == ".*" ]] && die "$name: $validate_pkg_name_msg"
+    [[ "$name" == */* ]] && die "$name: $validate_pkg_name_msg"
+    [[ "$name" == *\ * ]] && die "$name: $validate_pkg_name_msg"
+    [[ "$name" != *.hcpkg ]] && die "$name: Must have a .hcpkg extension."
+}
+
+foreach-overlay-file() {
+    local pkgdir="$(resolve-path "$1")"
+    shift
+
+    local ovldir="$pkgdir/overlay"
+
+    if [[ -d "$ovldir" ]]; then
+        for f in $(find "$ovldir" -not -type d); do
+            # We have to do this weird dirname trick with $lnk because $f might
+            # itself be a symlink, and we want to make sure we create the link
+            # to point at $f itself, and not at what $f points to.
+            tgt_rel="$(resolve-path "$(dirname "$f")" "$ovldir")/$(basename "$f")"
+            tgt="$HOME/$tgt_rel"
+            lnk="$(resolve-path "$(dirname "$f")" "$(dirname "$tgt")")/$(basename "$f")"
+
+            "$@" "$lnk" "$tgt"
+        done
+    fi
+}
+
+add-overlay-link() {
+    local lnk="$1"
+    local tgt="$2"
+
+    if [[ ! -d $(dirname "$tgt") ]]; then
+        run mkdir -p "$(dirname "$tgt")"
+    fi
+
+    if [[ -L "$tgt" ]]; then
+        if [[ "$(readlink "$tgt")" != "$lnk" ]]; then
+            run rm -f "$tgt"
+        fi
+    elif [[ -e "$tgt" ]]; then
+        echo "!!! $tgt already exists; not touching it" >&2
+        echo "!!! (You should move it out of the way and try again.)" >&2
+    fi
+
+    if [[ ! -e "$tgt" ]] && [[ ! -L "$tgt" ]]; then
+        run ln -s "$lnk" "$tgt" || die "Couldn't create $tgt"
+    fi
+}
+
+rm-overlay-link() {
+    local lnk="$1"
+    local tgt="$2"
+
+    if [[ -L "$tgt" ]] && [[ "$(readlink "$tgt")" == "$lnk" ]]; then
+        run rm "$tgt"
+    elif [[ -e "$tgt" ]]; then
+        echo "--- skipping $tgt (it was replaced)" >&2
+    fi
+}
+
+run-hook-script() {
+    local hookname="$1"
+    local interp="$2"
+    local script="$3"
+    shift
+    shift
+    shift
+
+    if [[ -e "$script" ]]; then
+        run "$interp" "$script" "$@" || die "Hook '$hookname' failed: rc = $?"
+    fi
+}
+
+run-hook() {
+    local hook="$1"
+    local pkgdir="$2"
+    shift
+    shift
+
+    run-hook-script "$hook" bash "$pkgdir/$hook.sh" "$@"
+    run-hook-script "$hook" bash "$pkgdir/$hook.bash" "$@"
+    run-hook-script "$hook" zsh "$pkgdir/$hook.zsh" "$@"
+    run-hook-script "$hook" tcsh "$pkgdir/$hook.csh" "$@"
+}
+
+enable-internal() {
+    local pkg="$1"
+
+    foreach-overlay-file "$pkg" add-overlay-link
+    run-hook install "$pkg"
+}
+
+disable-internal() {
+    local pkg="$1"
+
+    foreach-overlay-file "$pkg" rm-overlay-link
+    run-hook uninstall "$pkg"
+}
+
+
+
+#
+# Homectl user commands
+#
+
+homectl-help() {
+    local cmd="$1"
+    shift
+
+    if [[ -z "$cmd" ]]; then
+        echo "Usage:"
+        echo
+        usage-init
+        usage-uninstall
+        echo
+        usage-list
+        usage-enable
+        usage-disable
+        usage-refresh
+        echo
+        show-usage "help [cmd]"
+        echo ""
+
+    else
+        "usage-$cmd" "$@"
+        "help-$cmd" "$@"
+    fi
+}
+
+########################################
+# Init
+usage-init() {
+    show-usage "init my-homectl-setup [git://my-homectl-fork]"
+}
+help-init() {
+    echo ""
+    echo "Start a new homectl deployment."
+    echo ""
+    echo "Creates a new Git repository at the path you specify, and populates"
+    echo "it with a copy of homectl and a helper script for deploying your"
+    echo "setup on new machines."
+    echo ""
+    echo "You can optionally specify a URL to a homectl Git repo, and 'init'"
+    echo "will use that repo instead of the default.  This is only useful if"
+    echo "you work on homectl itself.  Note that if you specify a local"
+    echo "filesystem path for the URL, it HAS to be an absolute path."
+    echo ""
+}
+homectl-init() {
+    local root="$1"
+    local homectl_url="$2"
+    local warn_shell=""
+
+    [[ -z "$homectl_url" ]] && homectl_url="$DEFAULT_HOMECTL_URL"
+
+    runf git init "$root"
+    cd "$root" || exit 1
+
+    runf git submodule init
+    runf git submodule add "$homectl_url" homectl
+    runf mkdir enable.d
+    runf ln -s ../homectl/homectl.hcpkg enable.d/homectl.hcpkg
+
+    if [[ "$SHELL" == *zsh ]]; then
+        runf ln -s ../homectl/loader-zsh.hcpkg enable.d/loader-zsh.hcpkg
+    elif [[ "$SHELL" == *bash ]]; then
+        runf ln -s ../homectl/loader-bash.hcpkg enable.d/loader-bash.hcpkg
+    else
+        warn_shell="1"
+    fi
+
+    runf git add enable.d
+
+    echo "Creating README.asciidoc..."
+    cat >README.asciidoc <<EOF
+$LOGNAME's homectl setup
+================================================================================
+
+This is a Git repository which contains a homectl setup.  homectl is a program
+which manages all the scripts, dot-files, vendor packages, etc. that you tend to
+accumulate over time in your home directory.  Feel free to dump all of these
+things here (or in git submodules linked here).
+
+Quick Deployment
+----------------
+
+All you have to do is:
+
+    $ ./deploy.sh
+
+And all your homectl packages, as they are stored here, will be reconsituted.
+
+WARNING: Once you have deployed, do not rename or move this Git repository.  You
+will break your homectl installation if you do.  (If you have to move it,
+uninstall first and then re-deploy.)
+
+Uninstallation
+--------------
+
+    $ homectl uninstall
+
+Your Git repository will be left alone but all homectl-created symlinks in your
+home directory will be removed.
+
+Additional Notes
+----------------
+
+NOTE: Be sure to check out the homectl documentation for tips on how to create
+your own homectl packages.
+
+A few files and directories have been included here to start you off.
+
+README.asciidoc::
+    This file.
+
+homectl.hcpkg/::
+    A git submodule containing homectl itself.  It includes the +homectl+
+    command and its accompaniing documentation.
+
+deploy.sh::
+    A handy, one-step script to run on new machines to instantly deploy your
+    painstakingly-crafted homectl configuration.
+
+enable.d/::
+    A directory which contains symlinks to all the packages that are enabled (or
+    linked) in your home directory.  The +deploy.sh+ script uses these to
+    determine what packages should be enabled the first time.
+
+WARNING: You should not rename +enable.d+.  If you rename it, be sure to update
++deploy.sh+ and your +~/.homectl+ symlink to reflect the new name.  If you move
+it, you should uninstall homectl, move the symlink, and re-deploy.
+
+EOF
+    runf git add README.asciidoc
+
+    echo "Creating deploy.sh..."
+    cat >deploy.sh <<EOF
+#!/bin/bash
+
+cd "\$(dirname "\$0")"
+git submodule update || exit 1
+exec ./homectl/homectl.hcpkg/bin/homectl deploy enable.d
+EOF
+    runf chmod +x deploy.sh
+    runf git add deploy.sh
+
+    runf git commit --author "homectl <homectl@(none)>" -m "New homectl setup"
+
+    echo ""
+    echo ">>> If you want to start using this homectl setup in your home,"
+    echo ">>> you should now run:"
+    echo ">>>"
+    echo ">>>     $root/deploy.sh"
+    echo ""
+
+    if [[ ! -z "$warn_shell" ]]; then
+        echo "!!! We weren't able to determine what shell \"$SHELL\" is."
+        echo "!!! That means your homectl setup won't have a loader."
+        echo "!!! You will probably need to add or write one before"
+        echo "!!! homectl will be useful."
+        echo ""
+    fi
+}
+
+########################################
+# Deploy
+
+usage-deploy() {
+    show-usage "deploy enabled-pkg-dir"
+}
+help-deploy() {
+    echo ""
+    echo "Deploys the packages symlinked in enabled-pkg-dir to your \$HOME."
+    echo ""
+}
+homectl-deploy() {
+    local enable_dir="$1"
+
+    if [[ -L ~/.homectl ]] || [[ -e ~/.homectl ]]; then
+        die "~/.homectl already exists; you should run 'homectl uninstall' first."
+    fi
+
+    [[ -d "$enable_dir" ]] || die "Couldn't find enabled pkgs: $enable_dir"
+
+    run ln -s "$(resolve-path "$enable_dir" "$HOME")" "$HOME/.homectl" \
+        || die "Couldn't put ~/.homectl in place."
+
+    # Re-exec ourselves as a new process because that way HOMECTL_DIR gets set
+    # correctly.
+    runf "$0" refresh
+
+    echo ""
+    echo ">>> homectl is now deployed in your home directory."
+    echo ">>> You should restart your shell to pick up any changes."
+    echo ""
+}
+
+########################################
+# Uninstall
+usage-uninstall() {
+    show-usage "uninstall"
+}
+help-uninstall() {
+    echo ""
+    echo "Completely removes all traces of homectl from your home directory."
+    echo ""
+    echo "It does not, however, touch your homectl setup/Git repository.  If"
+    echo "you accidentally uninstall, just run your deploy.sh script again."
+    echo ""
+}
+homectl-uninstall() {
+    for p in $(homectl-list); do
+        disable-internal "$HOMECTL_DIR/$p"
+    done
+    runf rm -f ~/.homectl
+}
+
+########################################
+# List
+
+usage-list() {
+    show-usage "list"
+}
+help-list() {
+    echo ""
+    echo "Lists the packages that are presently enabled."
+    echo ""
+}
+homectl-list() {
+    pushd "$HOMECTL_DIR" >/dev/null || return 1
+    ls
+    popd >/dev/null
+}
+homectl-ls() {
+    homectl-list "$@"
+}
+
+########################################
+# Enable One (with a custom name to avoid collision)
+homectl-enable-one() {
+    local name="$1"
+    local pkg="$2"
+    local pkg_tag="$HOMECTL_DIR/$name"
+
+    validate-pkg-name "$name"
+
+    [[ ! -d "$pkg" ]] && die "$pkg: Not a directory"
+    [[ -L "$pkg_tag" ]] && die "$pkg: Already enabled"
+
+    enable-internal "$pkg"
+
+    run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$pkg_tag" \
+        || die "Couldn't mark $pkg enabled (as $name)"
+}
+
+########################################
+# Enable
+
+usage-enable() {
+    show-usage "en[able] pkg-path [pkg-path ...]"
+}
+help-enable() {
+    echo ""
+    echo "Enables the homectl package stored in the pkg-path directory, "
+    echo "linking it into your home directory and causing it to be loaded "
+    echo "by default."
+    echo ""
+    echo "If the package contains new shell aliases, changes the PATH, etc.,"
+    echo "you will have to restart any affected programs to pick up the new"
+    echo "features."
+    echo ""
+}
+homectl-enable() {
+    for pkg in "$@"; do
+        homectl-enable-one "$(basename "$pkg")" "$pkg"
+    done
+}
+homectl-en() {
+    homectl-enable "$@"
+}
+
+########################################
+# Disable
+
+usage-disable() {
+    show-usage "dis[able] pkg [pkg ...]"
+}
+help-disable() {
+    echo ""
+    echo "Undoes the effect of the 'enable' command.  Unlinks the enabled"
+    echo "package from your home directory, so it won't be loaded by default."
+    echo ""
+    echo "You may have to restart programs this package uses after it is"
+    echo "disabled."
+    echo ""
+}
+homectl-disable() {
+    for pkg in "$@"; do
+        validate-pkg-name "$pkg"
+
+        [[ ! -d "$HOMECTL_DIR/$pkg" ]] && die "$pkg: Isn't enabled"
+
+        disable-internal "$HOMECTL_DIR/$pkg"
+
+        run rm -f "$HOMECTL_DIR/$pkg" || die "Couldn't mark $pkg disabled"
+    done
+}
+homectl-dis() {
+    homectl-disable "$@"
+}
+
+########################################
+# Refresh
+
+usage-refresh() {
+    show-usage "refresh"
+}
+help-refresh() {
+    echo ""
+    echo "Refreshes all the enabled packages on your system."
+    echo ""
+    echo "This command re-runs all the install scripts and updates any links"
+    echo "used by the packages."
+    echo ""
+}
+homectl-refresh() {
+    for pkg in $(homectl-list); do
+        enable-internal "$HOMECTL_DIR/$pkg"
+    done
+}
+
+
+
+#
+# Run a command
+#
+
+cmd="$1"
+shift
+
+if [[ -z "$(declare -f "homectl-$cmd")" ]]; then
+    which "homectl-$cmd" >/dev/null 2>&1
+    if [[ $? -gt 0 ]]; then
+        cmd=help
+    fi
+fi
+
+# help/init/deploy are special commands that don't need or only work when
+# uninitialized
+case "$cmd" in
+    help)
+        ;;
+    init)
+        ;;
+    deploy)
+        ;;
+    *)
+        # NOTE: We are forcing this because loaders depend on it being in a
+        # known location.
+        #
+        # Also, we want to get the ACTUAL path to .homectl (minus any symlinks),
+        # because when "enable" puts new links in here, they need to be relative
+        # to the right place.
+        HOMECTL_DIR="$(resolve-path "$HOME/.homectl")"
+        export HOMECTL_DIR
+
+        if [[ ! -d "$HOMECTL_DIR" ]]; then
+            die "homectl doesn't appear to be set up yet (try 'homectl init')"
+        fi
+        ;;
+esac
+
+"homectl-$cmd" "$@"
+exit $?

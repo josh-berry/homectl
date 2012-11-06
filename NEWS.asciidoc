@@ -1,0 +1,12 @@
+News for homectl
+================
+
+:toc:
+
+Version 0.1.0
+-------------
+
+Released On: 5-Nov-2012
+
+.New Features
+* First release!

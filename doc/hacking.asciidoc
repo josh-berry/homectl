@@ -1,0 +1,216 @@
+Hacking on homectl
+==================
+:toc:
+
+This document describes homectl's preferred development practices.  If you're
+trying to learn how to create your own homectl packages, see
+link:customization.asciidoc[].
+
+
+
+Branches
+--------
+
+We use http://nvie.com/posts/a-successful-git-branching-model/[git-flow] for
+handling branches and releases.  This means:
+
+  * +master+ holds the latest stable release.
+  * +develop+ holds the current, possibly-broken development version.
+  * +feature/*+ branches are for new-feature development (and always get merged
+    into +develop+)
+
+
+
+Version Numbers
+---------------
+
+For the most part, homectl's version numbers don't matter -- most people can use
+the +master+ branch and be happy.  Different versions exist only to mark
+particularly stable points during development.
+
+Versions are named using the standard <major>.<minor>.<revision> scheme:
+
+  * Major versions contain new, possibly-incompatible features.
+  * Minor versions contain new, backward-compatible features (you can upgrade,
+    but you may not be able to downgrade).
+  * Revisions contain bugfixes only.
+
+We don't do alpha/beta releases, because if people want to try out the latest
+thing, they can just use +develop+.
+
+
+
+Design Principles
+-----------------
+
+.Don't Repeat Yourself.
+
+Ever.
+
+.Don't assume anything about the environment.
+
+Accept and code for the fact that anything can change.  The machine
+architecture, OS, distribution, or even +$HOME+ or +$SHELL+ can change without
+notice.  Your code should adapt to these changes transparently.
+
+.Don't mess with the user's stuff.
+
+Don't put anything in a user's Git unless they explicitly tell you to (for
+example, +homectl init+).  If you *must* do this, let the user add and commit it
+themselves (for example, +homectl enable+).
+
+.Keep homectl small.
+
+The only packages that belong in the +homectl+ distribution are homectl itself,
+and loader packages for the various shells, Emacs, Vim, etc.  If you are not
+providing a new, standard way to use homectl, put it somewhere else and link to
+it from the wiki.
+
+
+
+Code Submission Guidelines
+--------------------------
+
+Split your changes up logically
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each patch (commit, pull request, etc.) should do one thing, and one thing only.
+Don't jam multiple bugfixes or features into a single patch, and don't include
+unnecessary changes in a patch (e.g. whitespace changes to lines you didn't
+edit).  However, you should group changes related to the same feature/bug
+together -- if you add a new command, for instance, it would be wise to include
+the command's documentation in the same patch as its code.
+
+
+
+Write user documentation
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+If your pull request contains user-visible changes, please add or edit
+documentation accordingly, and include those changes with your pull request.
+All documentation should be in asciidoc format, and have the +.asciidoc+
+extension.
+
+For more information on asciidoc, see: http://www.methods.co.nz/asciidoc/
+
+
+
+Write clear source code
+~~~~~~~~~~~~~~~~~~~~~~~
+
+Choose descriptive variable names, indent properly, use blank lines to break
+code logically, etc.  Don't try to be clever or fast at the expense of
+readability.  *Readers should be able to understand what the code is doing even
+if ALL the comments are stripped out.*
+
+.Bad code
+==============================================================================
+------------------------------------------------------------------------------
+val() {
+    [[ "$1" == ".*" ]] && die "$1: $valmsg"
+    [[ "$1" == */* ]] && die "$1: $valmsg"
+    [[ "$1" == *\ * ]] && die "$1: $valmsg"
+}
+------------------------------------------------------------------------------
+==============================================================================
+
+.Good code
+==============================================================================
+------------------------------------------------------------------------------
+validate-pkg-name() {
+    local name="$1"
+
+    [[ "$name" == ".*" ]] && die "$name: $validate_pkg_name_msg"
+    [[ "$name" == */* ]] && die "$name: $validate_pkg_name_msg"
+    [[ "$name" == *\ * ]] && die "$name: $validate_pkg_name_msg"
+}
+------------------------------------------------------------------------------
+==============================================================================
+
+
+
+Comment your source code
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Source code comments should explain *why* code is the way it is, *not what* it
+is doing.  Comments should discuss the thought process that went into
+constructing the code -- background information, reasoning, even discarded
+approaches footnote:[As long as you explain why an approach was discarded!] are
+all good things to include in comments.
+
+Never write comments explaining what the code is doing.  If your code is
+well-structured and uses descriptive names, these comments are totally
+superfluous.  At best, they are a distraction that merely adds clutter.  At
+worst, over time they can become misleading, or even totally wrong.
+
+.Bad comment
+==============================================================================
+------------------------------------------------------------------------------
+for f in $(find "$ovldir" -not -type d); do
+    # Resolve the parent directory first and then add back the filename.
+    tgt_rel="$(resolve-path "$(dirname "$f")" "$ovldir")/$(basename "$f")"
+------------------------------------------------------------------------------
+==============================================================================
+
+.Good comment
+==============================================================================
+------------------------------------------------------------------------------
+for f in $(find "$ovldir" -not -type d); do
+    # We have to do this weird dirname trick with $lnk because $f might
+    # itself be a symlink, and we want to make sure we create the link
+    # to point at $f itself, and not at what $f points to.
+    tgt_rel="$(resolve-path "$(dirname "$f")" "$ovldir")/$(basename "$f")"
+------------------------------------------------------------------------------
+==============================================================================
+
+
+
+Format your commit messages and pull requests
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Please format your pull requests (and commit messages, if appropriate) in the
+following standard format (copied pretty much wholesale from the Linux kernel):
+
+------------------------------------------------------------------------
+subsystem: Title/Short Summary
+
+Full description of the change, including:
+- What the change is trying to accomplish
+- Why that's a good thing
+
+Please hard-wrap your text at 72 characters, so git log displays it
+correctly.
+------------------------------------------------------------------------
+
+The *subsystem* is an informal way of identifying the scope of the patch; if it
+applies to the +homectl init+ command, for example, it might be "homectl/init".
+If it applies to the +homectl+ command as a whole, it might just be "homectl".
+If it applies to the entire package (which is rare), it is omitted.
+
+.Bad commit message
+==============================================================================
+------------------------------------------------------------------------
+commit f75b60b260ae7d2ecc76c51aebbc09768746a683
+Author: Joshua J. Berry <des@condordes.net>
+Date:   Fri Oct 19 17:53:37 2012 -0700
+
+    Rename all homectl packages to *.hcpkg
+------------------------------------------------------------------------
+==============================================================================
+
+.Good commit message
+==============================================================================
+------------------------------------------------------------------------
+commit f66433ea3ecd289ab6ab2c334caede274c959c12
+Author: Joshua J. Berry <des@condordes.net>
+Date:   Fri Oct 19 18:02:47 2012 -0700
+
+    homectl: Enforce the .hcpkg naming convention
+
+    Someone might unintentionally try to activate something that's not a
+    homectl package, so we force all packages to end in .hcpkg to make sure
+    this doesn't happen.
+------------------------------------------------------------------------
+==============================================================================
+
+See also: https://www.kernel.org/doc/Documentation/SubmittingPatches
