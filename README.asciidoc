@@ -81,20 +81,17 @@ directory that point to homectl packages.
 $ homectl uninstall
 ------------------------------------
 
-Customization
-~~~~~~~~~~~~~
-
-...
-
 Further Reading
 ---------------
+
+We suggest you read these in order.
+
+link:doc/customization.asciidoc[]::
+    The anatomy of a homectl package, and how to create your own.
 
 Not yet written::
     How homectl itself is laid out (e.g. what the files, directories and
     included packages are).
-
-Not yet written::
-    The anatomy of a homectl package, and how to create your own.
 
 link:doc/hacking.asciidoc[]::
     A quick guide to hacking on homectl itself.  Covers high-level design

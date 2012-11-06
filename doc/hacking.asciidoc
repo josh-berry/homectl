@@ -3,7 +3,8 @@ Hacking on homectl
 :toc:
 
 This document describes homectl's preferred development practices.  If you're
-trying to learn how to create your own homectl packages, see [XXX].
+trying to learn how to create your own homectl packages, see
+link:customization.asciidoc[].
 
 
 
