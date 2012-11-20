@@ -158,6 +158,8 @@ homectl-help() {
         usage-list
         usage-enable
         usage-disable
+        echo
+        usage-find
         usage-refresh
         echo
         show-usage "help [cmd]"
@@ -471,6 +473,39 @@ homectl-refresh() {
     done
 }
 
+########################################
+# Find
+
+usage-find() {
+    show-usage "find path-in-pkg"
+}
+help-find() {
+    echo ""
+    echo "Searches for a file at a particular location in every enabled "
+    echo "package.  Reports the full paths to any files that were found."
+    echo ""
+    echo "For example, to find all files named \"install-hook\", you might"
+    echo "do this:"
+    echo ""
+    echo "    $ homectl find install-hook"
+    echo "    /home/$LOGNAME/.homectl/foo.hcpkg/install-hook"
+    echo "    /home/$LOGNAME/.homectl/bar.hcpkg/install-hook"
+    echo ""
+    echo "This works with nested paths as well, e.g.:"
+    echo ""
+    echo "    $ homectl find bin/install-hook"
+    echo "    /home/$LOGNAME/.homectl/foo.hcpkg/bin/install-hook"
+    echo "    /home/$LOGNAME/.homectl/bar.hcpkg/bin/install-hook"
+    echo ""
+}
+homectl-find() {
+    local name=$1
+    for pkg in $HOMECTL_DIR/*; do
+        if [[ -e "$pkg/$name" ]]; then
+            echo "$pkg/$name"
+        fi
+    done
+}
 
 
 #
