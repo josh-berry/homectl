@@ -282,7 +282,7 @@ EOF
 #!/bin/bash
 
 cd "\$(dirname "\$0")"
-git submodule update || exit 1
+git submodule update --init --recursive || exit 1
 exec ./homectl/homectl.hcpkg/bin/homectl deploy enable.d
 EOF
     runf chmod +x deploy.sh
