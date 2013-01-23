@@ -371,7 +371,7 @@ help-list() {
 }
 homectl-list() {
     for pkg in "$HOMECTL_DIR/"*; do
-        homectl-resolve-path "$pkg"
+        resolve-path "$pkg"
     done
 }
 homectl-ls() {
@@ -388,12 +388,12 @@ homectl-enable-one() {
     [[ ! -d "$pkg" ]] && die "$pkg: Not a directory"
 
     local pkg_tag="$(mktemp "$HOMECTL_DIR/$name-XXXXXXXXXX")"
-    local pkgpath="$(homectl-resolve-path "$pkg")"
+    local pkgpath="$(resolve-path "$pkg")"
 
     rm -f "$pkg_tag" || die "Couldn't remove tmpfile: $pkg_tag"
 
     for enpkg in "$HOMECTL_DIR/"*; do
-        if [[ "$(homectl-resolve-path "$enpkg")" = "$pkgpath" ]]; then
+        if [[ "$(resolve-path "$enpkg")" = "$pkgpath" ]]; then
             die "$pkg: Already enabled"
         fi
     done
@@ -447,11 +447,11 @@ help-disable() {
 }
 homectl-disable() {
     for pkg in "$@"; do
-        local pkgpath="$(homectl-resolve-path "$pkg")"
+        local pkgpath="$(resolve-path "$pkg")"
         local ok=""
 
         for enpkg in "$HOMECTL_DIR/"*; do
-            if [[ "$(homectl-resolve-path "$enpkg")" = "$pkgpath" ]]; then
+            if [[ "$(resolve-path "$enpkg")" = "$pkgpath" ]]; then
                 disable-internal "$pkgpath"
                 run rm -f "$enpkg" || die "Couldn't mark $pkg disabled"
                 echo "Disabled $pkg"
