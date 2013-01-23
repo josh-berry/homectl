@@ -37,15 +37,6 @@ resolve-path() {
     "$(dirname "$0")/homectl-resolve-path" "$@"
 }
 
-validate-pkg-name() {
-    local name="$1"
-
-    [[ "$name" == */* ]] && die "$name: BUG: Found a / in the name."
-    [[ "$name" == .* ]] && die "$name: Name must not start with a '.'"
-    [[ "$name" == *\ * ]] && die "$name: Name must not contain spaces."
-    [[ "$name" != *.hcpkg ]] && die "$name: Must have a .hcpkg extension."
-}
-
 foreach-overlay-file() {
     local pkgdir="$(resolve-path "$1")"
     shift
@@ -122,6 +113,19 @@ run-hook() {
     run-hook-script "$hook" bash "$pkgdir/$hook.bash" "$@"
     run-hook-script "$hook" zsh "$pkgdir/$hook.zsh" "$@"
     run-hook-script "$hook" tcsh "$pkgdir/$hook.csh" "$@"
+}
+
+mk-pkg-tag() {
+    local pkgpath="$1"
+    local link="$(resolve-path "$pkgpath" "$HOMECTL_DIR")"
+
+    local tag="$(echo "$link" |sed '
+        s%:%:_%g
+        s% %:+%g
+        s%/%::%g')"
+
+    run ln -s "$link" "$HOMECTL_DIR/@$tag" \
+        || die "Couldn't mark $pkgpath enabled"
 }
 
 enable-internal() {
@@ -382,15 +386,11 @@ homectl-ls() {
 # Enable One Package
 homectl-enable-one() {
     local pkg="$1"
-    local name="$(basename "$pkg")"
 
-    validate-pkg-name "$name"
     [[ ! -d "$pkg" ]] && die "$pkg: Not a directory"
+    [[ "$pkg" == *.hcpkg ]] || die "$pkg: Must have a .hcpkg extension"
 
-    local pkg_tag="$(mktemp "$HOMECTL_DIR/$name-XXXXXXXXXX")"
     local pkgpath="$(resolve-path "$pkg")"
-
-    rm -f "$pkg_tag" || die "Couldn't remove tmpfile: $pkg_tag"
 
     for enpkg in "$HOMECTL_DIR/"*; do
         if [[ "$(resolve-path "$enpkg")" = "$pkgpath" ]]; then
@@ -399,9 +399,7 @@ homectl-enable-one() {
     done
 
     enable-internal "$pkg"
-
-    run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$pkg_tag" \
-        || die "Couldn't mark $pkg enabled"
+    mk-pkg-tag "$pkg"
 }
 
 ########################################
