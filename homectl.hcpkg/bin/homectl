@@ -379,21 +379,29 @@ homectl-ls() {
 }
 
 ########################################
-# Enable One (with a custom name to avoid collision)
+# Enable One Package
 homectl-enable-one() {
-    local name="$1"
-    local pkg="$2"
-    local pkg_tag="$HOMECTL_DIR/$name"
+    local pkg="$1"
+    local name="$(basename "$pkg")"
 
     validate-pkg-name "$name"
-
     [[ ! -d "$pkg" ]] && die "$pkg: Not a directory"
-    [[ -L "$pkg_tag" ]] && die "$pkg: Already enabled"
+
+    local pkg_tag="$(mktemp "$HOMECTL_DIR/$name-XXXXXXXXXX")"
+    local pkgpath="$(homectl-resolve-path "$pkg")"
+
+    rm -f "$pkg_tag" || die "Couldn't remove tmpfile: $pkg_tag"
+
+    for enpkg in "$HOMECTL_DIR/"*; do
+        if [[ "$(homectl-resolve-path "$enpkg")" = "$pkgpath" ]]; then
+            die "$pkg: Already enabled"
+        fi
+    done
 
     enable-internal "$pkg"
 
     run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$pkg_tag" \
-        || die "Couldn't mark $pkg enabled (as $name)"
+        || die "Couldn't mark $pkg enabled"
 }
 
 ########################################
@@ -415,7 +423,7 @@ help-enable() {
 }
 homectl-enable() {
     for pkg in "$@"; do
-        homectl-enable-one "$(basename "$pkg")" "$pkg"
+        homectl-enable-one "$pkg"
     done
 }
 homectl-en() {
@@ -439,13 +447,23 @@ help-disable() {
 }
 homectl-disable() {
     for pkg in "$@"; do
-        validate-pkg-name "$pkg"
+        local pkgpath="$(homectl-resolve-path "$pkg")"
+        local ok=""
 
-        [[ ! -d "$HOMECTL_DIR/$pkg" ]] && die "$pkg: Isn't enabled"
+        for enpkg in "$HOMECTL_DIR/"*; do
+            if [[ "$(homectl-resolve-path "$enpkg")" = "$pkgpath" ]]; then
+                disable-internal "$pkgpath"
+                run rm -f "$enpkg" || die "Couldn't mark $pkg disabled"
+                echo "Disabled $pkg"
+                ok="yes"
+                break
+            fi
+        done
 
-        disable-internal "$HOMECTL_DIR/$pkg"
-
-        run rm -f "$HOMECTL_DIR/$pkg" || die "Couldn't mark $pkg disabled"
+        if [[ -z "$ok" ]]; then
+            [[ ! -d "$pkg" ]] && die "$pkg: No such file or directory"
+            die "$pkg: Isn't enabled"
+        fi
     done
 }
 homectl-dis() {
