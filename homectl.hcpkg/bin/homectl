@@ -37,13 +37,12 @@ resolve-path() {
     "$(dirname "$0")/homectl-resolve-path" "$@"
 }
 
-validate_pkg_name_msg="Invalid package name (no slashes, spaces, leading dots)"
 validate-pkg-name() {
     local name="$1"
 
-    [[ "$name" == ".*" ]] && die "$name: $validate_pkg_name_msg"
-    [[ "$name" == */* ]] && die "$name: $validate_pkg_name_msg"
-    [[ "$name" == *\ * ]] && die "$name: $validate_pkg_name_msg"
+    [[ "$name" == */* ]] && die "$name: BUG: Found a / in the name."
+    [[ "$name" == .* ]] && die "$name: Name must not start with a '.'"
+    [[ "$name" == *\ * ]] && die "$name: Name must not contain spaces."
     [[ "$name" != *.hcpkg ]] && die "$name: Must have a .hcpkg extension."
 }
 
