@@ -1,6 +1,10 @@
 ; Because we update Info-directory-* below
 (require 'info)
 
+;;;
+;;; Customization
+;;;
+
 (defvar homectl-dir (concat (getenv "HOME") "/.homectl")
   "The location of the homectl directory.  You should not change
   this unless you're a homectl developer and you change it in all
@@ -21,11 +25,79 @@ about this behvior on Linux."
 
 
 
+;;;
+;;; Support functions for homectl packages
+;;;
+
 (defmacro homectl-foreach-enabled (path-var &rest body)
   "Loop through each enabled homectl package, placing its path in /path-var/."
   `(dolist (,path-var (directory-files homectl-dir t nil t))
      (when (not (string-prefix-p "." (file-name-nondirectory ,path-var)))
        ,@body)))
+
+(defun homectl-require (repo-name repo-url pkg-symbol)
+  "Loads a package, optionally downloading it from the specified package
+repository if it is not already available on the system."
+
+  (cond
+   ; It's already available locally
+   ((require pkg-symbol nil t)
+    pkg-symbol)
+
+   ; Else try to fetch the package
+   (t
+    (when (not (assoc repo-name package-archives))
+      (add-to-list 'package-archives (cons repo-name repo-url)))
+    (package-install pkg-symbol)
+    (require pkg-symbol))))
+
+
+
+;;;
+;;; Startup-related utility functions
+;;;
+
+(defun homectl-load-package-el ()
+  "Download a version of package.el if it's not available."
+
+  (let ((my-user-dir (expand-file-name "~/.emacs.d/elpa"))
+        (my-package-el (expand-file-name "~/.emacs.d/elpa/package.el")))
+
+    (cond
+     ; Load it locally if it exists already.
+     ((require 'package nil t)
+      t)
+
+     ((file-exists-p my-package-el)
+      (load my-package-el)
+      t)
+
+     ; Don't load code from remote sites without asking the user first.
+     ((not (y-or-n-p "package.el not available; download it now?"))
+      (message "[homectl] WARNING: Remote packages may not work")
+      nil)
+
+     ; Grab package.el from the web
+     (t
+      (let ((buffer (url-retrieve-synchronously
+                     "http://tromey.com/elpa/package.el")))
+        (save-excursion
+          (set-buffer buffer)
+
+          ; Drop HTTP headers
+          (goto-char (point-min))
+          (re-search-forward "^$" nil 'move)
+          (forward-char)
+          (delete-region (point-min) (point))
+
+          ; Save package.el to a file
+          (setq buffer-file-name my-package-el)
+          (make-directory my-user-dir t)
+          (save-buffer)
+          (kill-buffer buffer)))
+
+      ; Load it
+      (load my-package-el)))))
 
 (defun homectl-env-add-to-path (var path)
   "Add a path to a :-separated environment variable."
@@ -75,11 +147,21 @@ about this behvior on Linux."
     (when (file-exists-p start-file)
       (load-file start-file))))
 
+
+
+;;;
+;;; Main entry point
+;;;
+
 (defun homectl-startup ()
   "Load all enabled homectl packages with Emacs customizations,
 and make sure the package's binaries are available in Emacs's
 environment."
   (interactive)
+
+  ; Make sure we're ready to fetch remote packages
+  (when (homectl-load-package-el)
+    (package-initialize))
 
   ; The following is a Darwin-specific hack to make sure the shell's $PATH
   ; is picked up by Emacs when running in Aqua mode.
@@ -109,6 +191,12 @@ environment."
   ; paths.
   (homectl-foreach-enabled pkg
     (homectl-enable-pkg pkg)))
+
+
+
+;;;
+;;; Startup homectl
+;;;
 
 (homectl-startup)
 
