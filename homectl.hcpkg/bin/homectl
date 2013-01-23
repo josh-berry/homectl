@@ -371,9 +371,9 @@ help-list() {
     echo ""
 }
 homectl-list() {
-    pushd "$HOMECTL_DIR" >/dev/null || return 1
-    ls
-    popd >/dev/null
+    for pkg in "$HOMECTL_DIR/"*; do
+        homectl-resolve-path "$pkg"
+    done
 }
 homectl-ls() {
     homectl-list "$@"
