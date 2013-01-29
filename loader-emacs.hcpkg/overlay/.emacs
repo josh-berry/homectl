@@ -44,20 +44,24 @@ repository if it is not already available on the system."
    ((require pkg-symbol nil t)
     pkg-symbol)
 
-   ; Else try to fetch the package
-   ((y-or-n-p (concat "[homectl] Install " (symbol-name pkg-symbol)
-                      " from " repo-url "?"))
-    (homectl-require-package-el)
-    (when (not (assoc repo-name package-archives))
-      (add-to-list 'package-archives (cons repo-name repo-url))
-      (package-refresh-contents))
-    (package-install pkg-symbol)
-    (require pkg-symbol))
-
-   ; User aborted package install
+   ; See if package.el knows about it
    (t
-     (error (concat "[homectl] Couldn't install " (symbol-name pkg-symbol)
-                    " from " repo-url)))))
+    (homectl-require-package-el)
+
+    ; Try loading it NOW...
+    (unless (require pkg-symbol nil t)
+      ; Must fetch it from the internet
+      (unless (y-or-n-p (concat "[homectl] Install " (symbol-name pkg-symbol)
+                                " from " repo-url "?"))
+        ; User aborted package install
+        (error (concat "[homectl] Couldn't install " (symbol-name pkg-symbol)
+                       " from " repo-url)))
+
+      (when (not (assoc repo-name package-archives))
+        (add-to-list 'package-archives (cons repo-name repo-url))
+        (package-refresh-contents))
+      (package-install pkg-symbol)
+      (require pkg-symbol)))))
 
 
 
