@@ -46,6 +46,7 @@ repository if it is not already available on the system."
 
    ; Else try to fetch the package
    (t
+    (homectl-require-package-el)
     (when (not (assoc repo-name package-archives))
       (add-to-list 'package-archives (cons repo-name repo-url)))
     (package-install pkg-symbol)
@@ -54,8 +55,17 @@ repository if it is not already available on the system."
 
 
 ;;;
-;;; Startup-related utility functions
+;;; package.el support
 ;;;
+
+(defvar homectl-package-el-ready-p nil
+  "Have we already loaded/initialized package.el?")
+
+(defun homectl-require-package-el ()
+  (when (not homectl-package-el-ready-p)
+    (homectl-load-package-el)
+    (package-initialize)
+    (setq homectl-package-el-ready-p t)))
 
 (defun homectl-load-package-el ()
   "Download a version of package.el if it's not available."
@@ -74,8 +84,7 @@ repository if it is not already available on the system."
 
      ; Don't load code from remote sites without asking the user first.
      ((not (y-or-n-p "package.el not available; download it now?"))
-      (message "[homectl] WARNING: Remote packages may not work")
-      nil)
+      (error "[homectl] Couldn't load package.el"))
 
      ; Grab package.el from the web
      (t
@@ -98,6 +107,12 @@ repository if it is not already available on the system."
 
       ; Load it
       (load my-package-el)))))
+
+
+
+;;;
+;;; Startup-related utility functions
+;;;
 
 (defun homectl-env-add-to-path (var path)
   "Add a path to a :-separated environment variable."
@@ -158,10 +173,6 @@ repository if it is not already available on the system."
 and make sure the package's binaries are available in Emacs's
 environment."
   (interactive)
-
-  ; Make sure we're ready to fetch remote packages
-  (when (homectl-load-package-el)
-    (package-initialize))
 
   ; The following is a Darwin-specific hack to make sure the shell's $PATH
   ; is picked up by Emacs when running in Aqua mode.
