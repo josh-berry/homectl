@@ -45,12 +45,19 @@ repository if it is not already available on the system."
     pkg-symbol)
 
    ; Else try to fetch the package
-   (t
+   ((y-or-n-p (concat "[homectl] Install " (symbol-name pkg-symbol)
+                      " from " repo-url "?"))
     (homectl-require-package-el)
     (when (not (assoc repo-name package-archives))
-      (add-to-list 'package-archives (cons repo-name repo-url)))
+      (add-to-list 'package-archives (cons repo-name repo-url))
+      (package-refresh-contents))
     (package-install pkg-symbol)
-    (require pkg-symbol))))
+    (require pkg-symbol))
+
+   ; User aborted package install
+   (t
+     (error (concat "[homectl] Couldn't install " (symbol-name pkg-symbol)
+                    " from " repo-url)))))
 
 
 
