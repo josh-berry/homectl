@@ -32,7 +32,7 @@ about this behvior on Linux."
 (defmacro homectl-foreach-enabled (path-var &rest body)
   "Loop through each enabled homectl package, placing its path in /path-var/."
   `(dolist (,path-var (directory-files homectl-dir t nil t))
-     (when (not (string-prefix-p "." (file-name-nondirectory ,path-var)))
+     (when (null (string-match-p "^\\." (file-name-nondirectory ,path-var)))
        ,@body)))
 
 (defun homectl-require (repo-name repo-url pkg-symbol)
