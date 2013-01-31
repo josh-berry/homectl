@@ -120,11 +120,11 @@ mk-pkg-tag() {
     local link="$(resolve-path "$pkgpath" "$HOMECTL_DIR")"
 
     local tag="$(echo "$link" |sed '
-        s%:%:_%g
-        s% %:+%g
-        s%/%::%g')"
+        s%@%@@%g
+        s% %@+%g
+        s%/%@_%g')"
 
-    run ln -s "$link" "$HOMECTL_DIR/@$tag" \
+    run ln -s "$link" "$HOMECTL_DIR/+$tag" \
         || die "Couldn't mark $pkgpath enabled"
 }
 
