@@ -74,50 +74,9 @@ repository if it is not already available on the system."
 
 (defun homectl-require-package-el ()
   (when (not homectl-package-el-ready-p)
-    (homectl-load-package-el)
+    (require 'package)
     (package-initialize)
     (setq homectl-package-el-ready-p t)))
-
-(defun homectl-load-package-el ()
-  "Download a version of package.el if it's not available."
-
-  (let ((my-user-dir (expand-file-name "~/.emacs.d/elpa"))
-        (my-package-el (expand-file-name "~/.emacs.d/elpa/package.el")))
-
-    (cond
-     ; Load it locally if it exists already.
-     ((require 'package nil t)
-      t)
-
-     ((file-exists-p my-package-el)
-      (load my-package-el)
-      t)
-
-     ; Don't load code from remote sites without asking the user first.
-     ((not (y-or-n-p "package.el not available; download it now?"))
-      (error "[homectl] Couldn't load package.el"))
-
-     ; Grab package.el from the web
-     (t
-      (let ((buffer (url-retrieve-synchronously
-                     "http://tromey.com/elpa/package.el")))
-        (save-excursion
-          (set-buffer buffer)
-
-          ; Drop HTTP headers
-          (goto-char (point-min))
-          (re-search-forward "^$" nil 'move)
-          (forward-char)
-          (delete-region (point-min) (point))
-
-          ; Save package.el to a file
-          (setq buffer-file-name my-package-el)
-          (make-directory my-user-dir t)
-          (save-buffer)
-          (kill-buffer buffer)))
-
-      ; Load it
-      (load my-package-el)))))
 
 
 
