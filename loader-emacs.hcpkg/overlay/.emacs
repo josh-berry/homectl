@@ -47,6 +47,7 @@ repository if it is not already available on the system."
    ; See if package.el knows about it
    (t
     (homectl-require-package-el)
+    (add-to-list 'package-archives (cons repo-name repo-url))
 
     ; Try loading it NOW...
     (unless (require pkg-symbol nil t)
@@ -58,7 +59,6 @@ repository if it is not already available on the system."
                        " from " repo-url)))
 
       (when (not (assoc repo-name package-archives))
-        (add-to-list 'package-archives (cons repo-name repo-url))
         (package-refresh-contents))
       (package-install pkg-symbol)
       (require pkg-symbol)))))
