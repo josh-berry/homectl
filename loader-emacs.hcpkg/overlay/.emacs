@@ -103,7 +103,8 @@ repository if it is not already available on the system."
     ; Emacs dir
     (when (file-directory-p lp-dir)
       (add-to-list 'load-path lp-dir)
-      (add-to-list 'Info-directory-list lp-dir)
+      (when Info-directory-list
+          (add-to-list 'Info-directory-list lp-dir))
       (add-to-list 'Info-default-directory-list lp-dir))
 
     ; bin/
