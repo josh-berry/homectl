@@ -284,6 +284,12 @@ EOF
     cat >deploy.sh <<EOF
 #!/bin/bash
 
+# This script deploys your homectl setup into your home directory, creating
+# symlinks and running install hooks where appropriate.
+#
+# Try to avoid modifying this script; instead, place install hooks in the
+# relevant homectl packages.  See the homectl documentation for more details.
+
 cd "\$(dirname "\$0")"
 git submodule update --init --recursive || exit 1
 exec ./homectl/homectl.hcpkg/bin/homectl deploy enable.d
