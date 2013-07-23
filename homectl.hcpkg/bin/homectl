@@ -37,16 +37,6 @@ resolve-path() {
     "$(dirname "$0")/homectl-resolve-path" "$@"
 }
 
-validate_pkg_name_msg="Invalid package name (no slashes, spaces, leading dots)"
-validate-pkg-name() {
-    local name="$1"
-
-    [[ "$name" == ".*" ]] && die "$name: $validate_pkg_name_msg"
-    [[ "$name" == */* ]] && die "$name: $validate_pkg_name_msg"
-    [[ "$name" == *\ * ]] && die "$name: $validate_pkg_name_msg"
-    [[ "$name" != *.hcpkg ]] && die "$name: Must have a .hcpkg extension."
-}
-
 foreach-overlay-file() {
     local pkgdir="$(resolve-path "$1")"
     shift
@@ -125,6 +115,19 @@ run-hook() {
     run-hook-script "$hook" tcsh "$pkgdir/$hook.csh" "$@"
 }
 
+mk-pkg-tag() {
+    local pkgpath="$1"
+    local link="$(resolve-path "$pkgpath" "$HOMECTL_DIR")"
+
+    local tag="$(echo "$link" |sed '
+        s%@%@@%g
+        s% %@+%g
+        s%/%@_%g')"
+
+    run ln -s "$link" "$HOMECTL_DIR/+$tag" \
+        || die "Couldn't mark $pkgpath enabled"
+}
+
 enable-internal() {
     local pkg="$1"
 
@@ -158,6 +161,8 @@ homectl-help() {
         usage-list
         usage-enable
         usage-disable
+        echo
+        usage-find
         usage-refresh
         echo
         show-usage "help [cmd]"
@@ -279,8 +284,14 @@ EOF
     cat >deploy.sh <<EOF
 #!/bin/bash
 
+# This script deploys your homectl setup into your home directory, creating
+# symlinks and running install hooks where appropriate.
+#
+# Try to avoid modifying this script; instead, place install hooks in the
+# relevant homectl packages.  See the homectl documentation for more details.
+
 cd "\$(dirname "\$0")"
-git submodule update || exit 1
+git submodule update --init --recursive || exit 1
 exec ./homectl/homectl.hcpkg/bin/homectl deploy enable.d
 EOF
     runf chmod +x deploy.sh
@@ -369,30 +380,32 @@ help-list() {
     echo ""
 }
 homectl-list() {
-    pushd "$HOMECTL_DIR" >/dev/null || return 1
-    ls
-    popd >/dev/null
+    for pkg in "$HOMECTL_DIR/"*; do
+        resolve-path "$pkg"
+    done
 }
 homectl-ls() {
     homectl-list "$@"
 }
 
 ########################################
-# Enable One (with a custom name to avoid collision)
+# Enable One Package
 homectl-enable-one() {
-    local name="$1"
-    local pkg="$2"
-    local pkg_tag="$HOMECTL_DIR/$name"
-
-    validate-pkg-name "$name"
+    local pkg="$1"
 
     [[ ! -d "$pkg" ]] && die "$pkg: Not a directory"
-    [[ -L "$pkg_tag" ]] && die "$pkg: Already enabled"
+    [[ "$pkg" == *.hcpkg ]] || die "$pkg: Must have a .hcpkg extension"
+
+    local pkgpath="$(resolve-path "$pkg")"
+
+    for enpkg in "$HOMECTL_DIR/"*; do
+        if [[ "$(resolve-path "$enpkg")" = "$pkgpath" ]]; then
+            die "$pkg: Already enabled"
+        fi
+    done
 
     enable-internal "$pkg"
-
-    run ln -s "$(resolve-path "$pkg" "$HOMECTL_DIR")" "$pkg_tag" \
-        || die "Couldn't mark $pkg enabled (as $name)"
+    mk-pkg-tag "$pkg"
 }
 
 ########################################
@@ -414,7 +427,7 @@ help-enable() {
 }
 homectl-enable() {
     for pkg in "$@"; do
-        homectl-enable-one "$(basename "$pkg")" "$pkg"
+        homectl-enable-one "$pkg"
     done
 }
 homectl-en() {
@@ -438,13 +451,23 @@ help-disable() {
 }
 homectl-disable() {
     for pkg in "$@"; do
-        validate-pkg-name "$pkg"
+        local pkgpath="$(resolve-path "$pkg")"
+        local ok=""
 
-        [[ ! -d "$HOMECTL_DIR/$pkg" ]] && die "$pkg: Isn't enabled"
+        for enpkg in "$HOMECTL_DIR/"*; do
+            if [[ "$(resolve-path "$enpkg")" = "$pkgpath" ]]; then
+                disable-internal "$pkgpath"
+                run rm -f "$enpkg" || die "Couldn't mark $pkg disabled"
+                echo "Disabled $pkg"
+                ok="yes"
+                break
+            fi
+        done
 
-        disable-internal "$HOMECTL_DIR/$pkg"
-
-        run rm -f "$HOMECTL_DIR/$pkg" || die "Couldn't mark $pkg disabled"
+        if [[ -z "$ok" ]]; then
+            [[ ! -d "$pkg" ]] && die "$pkg: No such file or directory"
+            die "$pkg: Isn't enabled"
+        fi
     done
 }
 homectl-dis() {
@@ -467,10 +490,43 @@ help-refresh() {
 }
 homectl-refresh() {
     for pkg in $(homectl-list); do
-        enable-internal "$HOMECTL_DIR/$pkg"
+        enable-internal "$pkg"
     done
 }
 
+########################################
+# Find
+
+usage-find() {
+    show-usage "find path-in-pkg"
+}
+help-find() {
+    echo ""
+    echo "Searches for a file at a particular location in every enabled "
+    echo "package.  Reports the full paths to any files that were found."
+    echo ""
+    echo "For example, to find all files named \"install-hook\", you might"
+    echo "do this:"
+    echo ""
+    echo "    $ homectl find install-hook"
+    echo "    /home/$LOGNAME/.homectl/foo.hcpkg/install-hook"
+    echo "    /home/$LOGNAME/.homectl/bar.hcpkg/install-hook"
+    echo ""
+    echo "This works with nested paths as well, e.g.:"
+    echo ""
+    echo "    $ homectl find bin/install-hook"
+    echo "    /home/$LOGNAME/.homectl/foo.hcpkg/bin/install-hook"
+    echo "    /home/$LOGNAME/.homectl/bar.hcpkg/bin/install-hook"
+    echo ""
+}
+homectl-find() {
+    local name=$1
+    for pkg in $HOMECTL_DIR/*; do
+        if [[ -e "$pkg/$name" ]]; then
+            echo "$pkg/$name"
+        fi
+    done
+}
 
 
 #
