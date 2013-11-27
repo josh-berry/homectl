@@ -58,8 +58,7 @@ repository if it is not already available on the system."
         (error (concat "[homectl] Couldn't install " (symbol-name pkg-symbol)
                        " from " repo-url)))
 
-      (when (not (assoc repo-name package-archives))
-        (package-refresh-contents))
+      (package-refresh-contents)
       (package-install pkg-symbol)
       (require pkg-symbol)))))
 
