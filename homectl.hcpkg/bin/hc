@@ -1,0 +1,439 @@
+#!/usr/bin/env python
+
+import os
+import sys
+import re
+import subprocess
+import collections
+from optparse import OptionParser
+
+# If we are imported as a module, this is our API.
+__all__ = ['HOME', 'HOMECTL_DIR', 'DEFAULT_HOMECTL_URL',
+           'System', 'ConsoleSystem',
+           'Deployment', 'Package',
+           'main']
+
+
+
+# System defaults that are hard to change.
+HOME = os.environ['HOME']
+CFG_DIR = os.environ.get('HOMECTL_DIR_NAME', '.homectl')
+DEFAULT_HOMECTL_URL = "git://github.com/josh-berry/homectl.git"
+
+ENABLED_LIST = 'enable.d'
+
+
+# Util functions
+
+def mkdirp(path):
+    if not os.path.isdir(path):
+        os.makedirs(path)
+
+def visible_dirs(path):
+    for d in os.listdir(path):
+        if d[0] == '.': continue
+        p = os.path.join(path, d)
+        if os.path.isdir(p):
+            yield d, p
+
+def visible_links(path):
+    for d in os.listdir(path):
+        if d[0] == '.': continue
+        p = os.path.join(path, d)
+        if os.path.islink(p):
+            yield d, p
+
+def fs_tree(path):
+    # List all the files, directories, etc. in /path/, including /path/
+    # itself.  Works like "find $path" would.
+    #
+    # As a convenience, for each entry, yields a tuple of two paths:
+    #
+    # (relative_to_/path/, abs_path)
+
+    if not os.path.exists(path):
+        return
+
+    for ent in os.listdir(path):
+        if ent in ['.', '..']: continue
+        entp = os.path.join(path, ent)
+
+        # We treat symlinks as regular files to avoid directory loops, and
+        # because that's generally what we want in homectl packages
+        if os.path.islink(entp) or not os.path.isdir(entp):
+            yield ent, entp
+        else:
+            for relp, absp in fs_tree(entp):
+                yield os.path.join(ent, relp), absp
+
+def fs_files_in(path):
+    # List all the files in /path/.  /path/ is expected to be a directory; if it
+    # is not, returns no values.
+    return ((relp, absp) for relp, absp in fs_tree(path)
+            if absp != path and not os.path.isdir(absp))
+
+
+
+class Package(object):
+    def __init__(self, path):
+        self.path = os.path.abspath(path)
+
+    @property
+    def name(self):
+        return os.path.basename(self.path)
+
+    @property
+    def systems(self):
+        yield 'common'
+        for name, path in visible_dirs(self.path):
+            if re.match('^[A-Z].*', name):
+                yield name
+
+    def _system_dir(self, system):
+        if system == 'common':
+            return self.path
+        else:
+            return os.path.join(self.path, system)
+
+    def _hook_dir(self, system, hook):
+        return os.path.join(self._system_dir(system), hook)
+
+    def hooks_in_system(self, system):
+        for name, path in visible_dirs(self._system_dir(system)):
+            if not re.match('^[A-Z].*', name):
+                yield name
+
+    def files_in_sys_hook(self, system, hook):
+        return fs_files_in(self._hook_dir(system, hook))
+
+    #
+    # Derived Functionality
+    #
+
+    def file_map(self, systems=None, hooks=None):
+        # For all hooks and systems in this package, return a list of tuples:
+        #
+        # ( (system, hook, hook_file), "/full/path/to/file/in/pkg" )
+        #
+        # for each file that is present in this package.
+
+        for s in self.systems:
+            if systems and s not in systems: continue
+
+            for h in self.hooks_in_system(s):
+                if hooks and h not in hooks: continue
+
+                for f, fpath in self.files_in_sys_hook(s, h):
+                    yield (s, h, f), fpath
+
+
+
+class System(object):
+    def __init__(self, pretend=False):
+        self.default_homectl_url = DEFAULT_HOMECTL_URL
+        self.pretend = pretend
+
+    @property
+    def names(self):
+        system, node, rel, ver, machine = os.uname()
+        return ['common',
+                system,
+                '%s-%s' % (system, machine),
+                '%s-%s' % (system, rel),
+                '%s-%s-%s' % (system, rel, machine)]
+
+    def update_file(self, path, contents):
+        self.log('update %s' % (path,))
+        if self.pretend: return
+
+        mkdirp(os.path.dirname(path))
+        with open(path + '.tmp', 'w') as f:
+            f.write(contents)
+        os.rename(path + '.tmp', path)
+
+    def mk_link(self, src, target):
+        tgt_dir = os.path.dirname(target)
+        link_text = os.path.relpath(src, tgt_dir)
+
+        self.log('ln -s %s %s' % (src, target))
+        if not self.pretend:
+            mkdirp(tgt_dir)
+            os.symlink(src, target)
+
+    def rm_link(self, path):
+        if os.path.islink(path):
+            self.log("rm %s" % path)
+            if not self.pretend:
+                os.unlink(path)
+        else:
+            self.log("Can't unlink %s: Not a symbolic link" % path)
+
+    def run(self, *args):
+        # Runs the specified command; yields lines of output from the command's
+        # stdout/stderr (with trailing whitespace stripped, for convenience).
+        #
+        # On an error, or if the process exits with a non-zero status, raises
+        # subprocess.CalledProcessError.
+
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, close_fds=True)
+        for line in proc.stdout.readlines():
+            yield line.rstrip()
+
+        rc = proc.wait()
+        if rc != 0:
+            raise CalledProcessError(rc, args)
+
+
+
+class Deployment(object):
+    def __init__(self, system, homedir=HOME, cfgdir=None):
+        self.sys = system
+
+        self.homedir = homedir
+
+        if not cfgdir:
+            cfgdir = os.path.join(homedir, CFG_DIR)
+        self.cfgdir = cfgdir
+
+        self.enabled_list = os.path.join(self.cfgdir, ENABLED_LIST)
+
+        if os.path.islink(cfgdir):
+            self._upgrade(os.path.realpath(cfgdir))
+
+    def _upgrade(self, old_cfg):
+        # Upgrade from homectl <= 0.2 to current
+        self.sys.log("")
+        self.sys.log("Upgrading from an older setup in: %s" % old_cfg)
+        self.sys.log("")
+
+        self.sys.rm_link(self.cfgdir)
+
+        paths = set()
+        for f, p in visible_links(old_cfg):
+            pkgpath = os.path.realpath(p)
+            self.sys.log("--- Found package: %s" % pkgpath)
+            paths.add(pkgpath)
+
+        self.packages = [Package(p) for p in paths]
+
+    @property
+    def packages(self):
+        try:
+            with open(self.enabled_list, 'r') as f:
+                return [Package(os.path.join(self.homedir, l.strip()))
+                        for l in f.readlines()
+                        if l.strip() != '']
+        except IOError:
+            return []
+
+    @packages.setter
+    def packages(self, pkgs):
+        pkg_paths = sorted(set([os.path.relpath(p.path, self.homedir)
+                                for p in pkgs]))
+
+        self.sys.update_file(self.enabled_list,
+                             "\n".join(pkg_paths) + "\n")
+        self.refresh()
+
+    def hook_dirs(self, hook):
+        for s in self.sys.names:
+            p = os.path.join(self.cfgdir, s, hook)
+            if os.path.isdir(p):
+                yield p
+
+    def hook_files(self, hook):
+        for d in self.hook_dirs(hook):
+            for r, a in fs_tree(d):
+                if os.path.islink(a):
+                    yield r, a
+
+    def refresh(self):
+        link_map = {} # link_path_in_cfgdir: link_text
+        overlay_links = set() # relative paths under $cfgdir/common/overlay
+        overlay_rel = os.path.join('common', 'overlay')
+        overlay_path = os.path.join(self.cfgdir, overlay_rel)
+
+        # First, build the set of links we know should exist for each package.
+        for p in self.packages:
+            for (s, h, f), path in p.file_map():
+                cfgrel = os.path.join(s, h, f)
+                cfgreldir = os.path.dirname(cfgrel)
+                link_text = os.path.relpath(path, cfgreldir)
+
+                link_map[cfgrel] = link_text
+                if s == 'common' and h == 'overlay':
+                    overlay_links.add(f)
+
+        # Remove any overlay links in ~ that don't match what we expect.  We
+        # discover overlay links by scanning $cfgdir/common/overlay (before
+        # removing anything from it), so we don't have to do a recursive scan of
+        # ~.
+        for rel, path in fs_tree(overlay_path):
+            home_path = os.path.join(self.homedir, rel)
+            home_link_text = os.path.relpath(path, os.path.dirname(home_path))
+
+            # For each link in $cfgdir/common/overlay, we expect there to be a
+            # corresponding link from ~/... to $cfgdir/common/overlay/...
+
+            # If this isn't true, leave the link in ~ alone.
+            if not os.path.islink(home_path): continue
+            if os.readlink(home_path) != home_link_text: continue
+
+            if rel not in overlay_links:
+                # This is a stale overlay link; remove it
+                self.sys.rm_link(home_path)
+
+        # Remove any link in the cfgdir that doesn't match what we expect.
+        for rel, path in fs_tree(self.cfgdir):
+            if not os.path.islink(path): continue
+            if rel not in link_map or os.readlink(path) != link_map[rel]:
+                self.sys.rm_link(path)
+
+        # Create any missing links in $cfgdir.
+        for rel, text in link_map.iteritems():
+            # Create in $cfgdir
+            lnk = os.path.join(self.cfgdir, rel)
+            if not os.path.lexists(lnk):
+                self.sys.mk_link(text, lnk)
+
+        # Now create any missing links from ~ to $cfgdir.
+        for rel in overlay_links:
+            home_path = os.path.join(self.homedir, rel)
+            cfg_path = os.path.join(overlay_path, rel)
+            link_text = os.path.relpath(cfg_path, home_path)
+
+            if not os.path.exists(home_path):
+                self.sys.mk_link(link_text, home_path)
+
+        # XXX cleanup empty dirs in $cfgdir
+
+    #
+    # Derived methods (implemented only in terms of the above)
+    #
+
+    def enable(self, pkg):
+        self.packages = list(self.packages) + [pkg]
+
+    def disable(self, pkg):
+        self.packages = [
+            p for p in self.packages
+            if os.path.realpath(p.path) != os.path.realpath(pkg.path)]
+
+
+
+class ConsoleSystem(System):
+    def log(self, msg):
+        print msg
+
+    def run(self, *args):
+        print "$ %s" % ' '.join(args)
+
+        try:
+            for line in System.run(self, *args):
+                print "... %s" % line
+
+        except subprocess.CalledProcessError, e:
+            print "!!! Command failed (rc = %d): %s" % (
+                e.returncode, ' '.join(args))
+            raise e
+
+
+
+#
+# User-facing homectl commands
+#
+
+commands = {}
+
+def cmd_help(d, args):
+    print """Usage: homectl CMD OPTIONS ...
+
+For help on individual commands, run "help cmd".
+
+    init
+    deploy
+    refresh
+    uninstall
+
+    list
+    enable
+    disable
+
+    path
+    find
+"""
+
+commands['help'] = cmd_help
+
+def cmd_init(d, args):
+    pass
+
+def cmd_deploy(d, args):
+    pass
+
+def cmd_refresh(d, args):
+    d.refresh()
+commands['refresh'] = cmd_refresh
+commands['ref'] = cmd_refresh
+
+def cmd_uninstall(d, args):
+    pass
+
+def cmd_list(d, args):
+    for p in d.packages:
+        print p.path
+commands['list'] = cmd_list
+commands['ls'] = cmd_list
+
+def cmd_enable(d, args):
+    for path in args[1:]:
+        p = Package(path)
+        d.enable(p)
+
+commands['enable'] = cmd_enable
+commands['en'] = cmd_enable
+
+def cmd_disable(d, args):
+    for path in args[1:]:
+        p = Package(path)
+        d.disable(p)
+
+commands['disable'] = cmd_disable
+commands['dis'] = cmd_disable
+
+def cmd_path(d, argv):
+    parser = OptionParser(usage='Usage: hc path [options] HOOK')
+    parser.add_option('-d', '--delimiter', dest='delimiter', default=':',
+                      help='Separate directories with DELIMITER (default: %default)')
+    parser.add_option('-n', '--newlines', dest='delimiter',
+                      action='store_const', const="\n",
+                      help='Separate directories with newlines.')
+    options, args = parser.parse_args(argv)
+
+    print options.delimiter.join(d.hook_dirs(args[1]))
+
+commands['path'] = cmd_path
+
+def cmd_find(d, argv):
+    for f in d.hook_files(argv[1]):
+        print f
+commands['find'] = cmd_find
+
+def main(d, argv):
+    show_help = len(argv) < 2 or argv[1] == 'help' or argv[1] == '--help'
+
+    if show_help:
+        cmd = commands['help']
+    else:
+        try:
+            cmd = commands[argv[1]]
+        except KeyError:
+            raise
+
+    cmd(d, argv[1:])
+
+
+
+if __name__ == '__main__':
+    main(Deployment(ConsoleSystem(pretend=False)), sys.argv)
