@@ -400,8 +400,8 @@ class Deployment(object):
         for p in self.packages:
             for (s, h, f), path in p.file_map():
                 cfgrel = os.path.join(s, h, f)
-                cfgreldir = os.path.dirname(cfgrel)
-                link_text = os.path.relpath(path, cfgreldir)
+                cfgabsdir = os.path.join(self.cfgdir, os.path.dirname(cfgrel))
+                link_text = os.path.relpath(path, cfgabsdir)
 
                 link_map[cfgrel] = link_text
                 if s == 'common' and h == 'overlay':
