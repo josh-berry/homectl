@@ -76,11 +76,10 @@ def fs_files_in(path):
 
 class Package(object):
     def __init__(self, path):
-        self.path = os.path.abspath(path)
+        if not path.endswith('.hcpkg'):
+            raise IOError("%s: Not a homectl package" % path)
 
-    @property
-    def name(self):
-        return os.path.basename(self.path)
+        self.path = os.path.abspath(path)
 
     @property
     def systems(self):
@@ -277,8 +276,10 @@ class Deployment(object):
             # corresponding link from ~/... to $cfgdir/common/overlay/...
 
             # If this isn't true, leave the link in ~ alone.
-            if not os.path.islink(home_path): continue
-            if os.readlink(home_path) != home_link_text: continue
+            if not os.path.islink(home_path) or \
+               os.readlink(home_path) != home_link_text:
+                self.sys.log("!!! Won't replace existing file: %s" % home_path)
+                continue
 
             if rel not in overlay_links:
                 # This is a stale overlay link; remove it
