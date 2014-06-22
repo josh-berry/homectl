@@ -197,8 +197,20 @@ class Deployment(object):
 
         self.enabled_list = os.path.join(self.cfgdir, ENABLED_LIST)
 
-        if os.path.islink(cfgdir):
-            self._upgrade(os.path.realpath(cfgdir))
+        if self.needs_upgrade:
+            self.sys.log("!!! Your existing homectl needs to be upgraded.")
+            self.sys.log("!!! Run 'hc upgrade'.")
+
+    @property
+    def needs_upgrade(self):
+        return os.path.islink(self.cfgdir)
+
+    def _assert_current_ver(self):
+        if self.needs_upgrade:
+            raise IOError('Please run "hc upgrade".')
+
+    def upgrade(self):
+        self._upgrade(os.path.realpath(self.cfgdir))
 
     def _upgrade(self, old_cfg):
         # Upgrade from homectl <= 0.2 to current
@@ -206,7 +218,7 @@ class Deployment(object):
         self.sys.log("Upgrading from an older setup in: %s" % old_cfg)
         self.sys.log("")
 
-        self.sys.rm_link(self.cfgdir)
+        self.sys.rm_link(self.cfgdir) # also clears self.needs_upgrade
 
         paths = set()
         for f, p in visible_links(old_cfg):
@@ -218,6 +230,7 @@ class Deployment(object):
 
     @property
     def packages(self):
+        self._assert_current_ver()
         try:
             with open(self.enabled_list, 'r') as f:
                 return [Package(os.path.join(self.homedir, l.strip()))
@@ -228,6 +241,7 @@ class Deployment(object):
 
     @packages.setter
     def packages(self, pkgs):
+        self._assert_current_ver()
         pkg_paths = sorted(set([os.path.relpath(p.path, self.homedir)
                                 for p in pkgs]))
 
@@ -236,18 +250,24 @@ class Deployment(object):
         self.refresh()
 
     def hook_dirs(self, hook):
+        self._assert_current_ver()
+
         for s in self.sys.names:
             p = os.path.join(self.cfgdir, s, hook)
             if os.path.isdir(p):
                 yield p
 
     def hook_files(self, hook):
+        self._assert_current_ver()
+
         for d in self.hook_dirs(hook):
             for r, a in fs_tree(d):
                 if os.path.islink(a):
                     yield r, a
 
     def refresh(self):
+        self._assert_current_ver()
+
         link_map = {} # link_path_in_cfgdir: link_text
         overlay_links = set() # relative paths under $cfgdir/common/overlay
         overlay_rel = os.path.join('common', 'overlay')
@@ -350,10 +370,12 @@ commands = {}
 def cmd_help(d, args):
     print """Usage: homectl CMD OPTIONS ...
 
-For help on individual commands, run "help cmd".
+For help on individual commands, run "cmd --help".
 
     init
+
     deploy
+    upgrade
     refresh
     uninstall
 
@@ -372,6 +394,10 @@ def cmd_init(d, args):
 
 def cmd_deploy(d, args):
     pass
+
+def cmd_upgrade(d, args):
+    d.upgrade()
+commands['upgrade'] = cmd_upgrade
 
 def cmd_refresh(d, args):
     d.refresh()
