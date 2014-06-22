@@ -75,6 +75,37 @@ def fs_files_in(path):
 
 
 class Package(object):
+    # A Package represents a single homectl package.  Packages contain files for
+    # specific "systems" and "hooks".  homectl packages are stored as
+    # directories in the filesystem with a ".hcpkg" extension, organized as
+    # described below.
+    #
+    # A "system" is analagous to a type of computer system, e.g. a Linux system,
+    # an Linux-x86_64 system, or a machine with a particular hostname.  The
+    # special "common" system will be available on all machines, regardless of
+    # their type.  Except for the special "common" system, all system names must
+    # begin with an uppercase letter [A-Z].
+    #
+    # A "hook" is a special directory where files from many different packages
+    # reside together in a common location.  One example of a hook is "bin" --
+    # executable programs from many different packages may be placed in a common
+    # "bin" directory (such as /usr/bin or ~/bin), so they can be found in a
+    # single, well-known place.  All hook names must begin with a lowercase
+    # letter [a-z].
+    #
+    # Files in a homectl package are typically organized by system, then hook.
+    # For example, a binary which runs on Linux x86_64 systems will be placed in
+    # the foo.hcpkg/Linux-x86_64/bin subdirectory.
+    #
+    # The special "common" system does not have its own directory; hooks for the
+    # "common" system are placed directly inside the package (e.g. shell scripts
+    # would go under foo.hcpkg/bin).
+    #
+    # In the "common" system only, there is a special "overlay" hook which
+    # contains files that are linked directly into the user's home directory
+    # (for example, a .emacs or a .vimrc).  Like other "common" hooks, these
+    # files go directly under foo.hcpkg/overlay.
+
     def __init__(self, path):
         if not path.endswith('.hcpkg'):
             raise IOError("%s: Not a homectl package" % path)
@@ -128,6 +159,21 @@ class Package(object):
 
 
 class System(object):
+    # System serves a dual purpose -- it provides an independent interface for
+    # homectl to interact with the user and the OS, and it provides information
+    # on what capabilities the current machine/environment supports.
+    #
+    # Capability information is provided as a set of system names, such as
+    # "common", "Linux", "Linux-x86_64", "Host-mymachine", etc.  These names
+    # correspond to the systems in homectl Package objects.  homectl packages
+    # provide functionality for specific systems (or all systems, via the
+    # "commoon" system), and only those systems supported by the current machine
+    # are reported by the System.names property.
+    #
+    # The System class also provides an interface to the host machine (and thus
+    # the user) with a few utility functions for logging (log() and log_*()),
+    # and executing programs and logging/returning the results (run()).
+
     def __init__(self, pretend=False):
         self.default_homectl_url = DEFAULT_HOMECTL_URL
         self.pretend = pretend
@@ -200,6 +246,37 @@ class System(object):
 
 
 class Deployment(object):
+    # A homectl Deployment is the set of "enabled" or activated packages, as
+    # deployed into the user's home directory (via symlinks, etc.).
+    #
+    # Packages may be enabled/disabled (analagous to installing/uninstalling) by
+    # modifying the Deployment.packages attribute, or calling enable() or
+    # disable().  Deployment.packages is always a list of Package objects,
+    # representing the packages enabled in the user's deployment.
+    #
+    # When Deployment.packages is modified (directly or via enable()/disable()),
+    # the user's deployment is automatically refresh()ed.  This updates all the
+    # symlinks put in place to the user's various packages, removing old ones,
+    # placing new ones, etc.  refresh() may also be called any time a
+    # previously-enabled package is modified, to ensure the deployment reflects
+    # all the changes.
+    #
+    # The contents of enabled packages are symlinked in the config dir (see
+    # CFG_DIR).  A directory tree under ~/$CFG_DIR is created for all the
+    # systems and hooks in all the user's enabled packages.  Links are
+    # maintained in the form:
+    #
+    #     ~/$CFG_DIR/<system>/<hook>/<path_to_file_in_pkg>
+    #
+    # Additionally, any files in the "common/overlay" system/hook are linked
+    # directly underneath the user's home directory.  This "overlay" hook is
+    # used for dot-files and other config files.
+    #
+    # The contents of all enabled packages may be queried using the hook_dirs()
+    # nd hook_files() calls.  The former lists all directories for a hook which
+    # apply to the current system.  The latter enumerates all the files within a
+    # particular hook which apply to the current system.
+
     def __init__(self, system, homedir=HOME, cfgdir=None):
         self.sys = system
 
