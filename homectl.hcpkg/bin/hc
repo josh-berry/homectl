@@ -487,14 +487,13 @@ class ConsoleSystem(System):
 commands = {}
 
 def cmd_help(d, args):
-    print """Usage: homectl CMD OPTIONS ...
+    print """Usage: %(cmd)s CMD OPTIONS ...
 
 For help on individual commands, run "cmd --help".
 
     init
-
-    deploy
     upgrade
+
     refresh
     uninstall
 
@@ -504,16 +503,36 @@ For help on individual commands, run "cmd --help".
 
     path
     find
-"""
+""" % {'cmd': CMD_NAME}
 
 commands['help'] = cmd_help
 
 def cmd_init(d, argv):
     if len(argv) < 2 or argv[1].startswith('-'):
-        print "Usage: %s init PATH-TO-YOUR-GIT-REPO [pkg pkg ...]" % CMD_NAME
+        print """Usage: %s init PATH-TO-YOUR-GIT-REPO [URL]
+
+Create a new homectl setup, or upgrade an existing setup.
+
+Creates a new Git repository at the path you specify, and populates
+it with a copy of homectl and a helper script for deploying your
+setup on new machines.
+
+If there is already an older homectl setup at this location, the
+setup will be upgraded to be compatible with this version of
+homectl.
+
+You can optionally specify a URL to a homectl Git repo, and 'init'
+will use that repo instead of the default.  This is only useful if
+you work on homectl itself.  Note that if you specify a local
+filesystem path for the URL, it must be an absolute path.
+""" % CMD_NAME
         return
 
     new_setup = False
+
+    hc_url = DEFAULT_HOMECTL_URL
+    if len(argv) > 2:
+        hc_url = argv[2]
 
     # Stuff to create or update
     gitrepo = argv[1]
@@ -530,11 +549,8 @@ def cmd_init(d, argv):
     enable_cmds += [cmd_tmpl % {'cmd': CMD_NAME,
                                 'pkg': os.path.join('homectl', p)}
                     for p in DEFAULT_HOMECTL_PKGS]
-    enable_cmds += ['\n# Your custom packages\n']
-    enable_cmds += [cmd_tmpl % {'cmd': CMD_NAME,
-                                'pkg': os.path.relpath(p, gitrepo)}
-                    for p in argv[2:]]
 
+    enable_cmds += ['\n# Your custom packages\n']
     if os.path.isdir(old_enable_d):
         for r, a in visible_links(old_enable_d):
             pkg = os.readlink(a)
@@ -550,7 +566,7 @@ def cmd_init(d, argv):
         new_setup = True
 
     if not os.path.isdir(os.path.join(gitrepo, 'homectl')):
-        d.sys.run('git', 'submodule', 'add', DEFAULT_HOMECTL_URL, 'homectl',
+        d.sys.run('git', 'submodule', 'add', hc_url, 'homectl',
                   cwd=gitrepo)
 
     d.sys.update_file(readme, """%(user)s's homectl setup
@@ -643,7 +659,16 @@ git submodule update --init --recursive
 
 commands['init'] = cmd_init
 
-def cmd_upgrade(d, args):
+def cmd_upgrade(d, argv):
+    if len(argv) > 1:
+        print """Usage: %s upgrade
+
+Upgrades your ~/.homectl to use the latest version of homectl.
+This command does not upgrade your homectl setup (git repository);
+to do that, you must run the init command separately.
+""" % CMD_NAME
+        return
+
     enabled_path = os.path.realpath(d.cfgdir)
     if os.path.basename(enabled_path) == 'enable.d':
         git_repo_path = os.path.dirname(os.path.realpath(d.cfgdir))
@@ -661,31 +686,81 @@ def cmd_upgrade(d, args):
 
 commands['upgrade'] = cmd_upgrade
 
-def cmd_refresh(d, args):
+def cmd_refresh(d, argv):
+    if len(argv) > 1:
+        print """Usage: %s refresh
+
+Scans for any changes in your homectl packages, and ensures those
+changes are reflected in your home directory (e.g. creates/removes
+symlinks so that scripts and binaries appear in your path).
+""" % CMD_NAME
+        return
+
     d.refresh()
 commands['refresh'] = cmd_refresh
 commands['ref'] = cmd_refresh
 
-def cmd_uninstall(d, args):
+def cmd_uninstall(d, argv):
+    if len(argv) > 1:
+        print """Usage: %s uninstall
+
+Completely remove homectl from your home directory.  Leaves your
+homectl setup (git repository) intact.
+
+If you accidentally uninstall, you can run your deploy.sh script
+again to get your homectl deployment back.
+""" % CMD_NAME
+        return
+
     d.uninstall()
 commands['uninstall'] = cmd_uninstall
 
-def cmd_list(d, args):
+def cmd_list(d, argv):
+    if len(argv) > 1:
+        print """Usage: %s list
+
+List all enabled packages.
+""" % CMD_NAME
+        return
+
     for p in d.packages:
         print p.path
 commands['list'] = cmd_list
 commands['ls'] = cmd_list
 
-def cmd_enable(d, args):
-    for path in args[1:]:
+def cmd_enable(d, argv):
+    if len(argv) <= 1 or argv[1].startswith('-'):
+        print """Usage: %s enable PKG [PKG ...]
+
+Enables one or more packages, linking their contents into
+your home directory.
+
+If the package contains new shell aliases, changes to $PATH,
+etc., you will have to restart any affected programs to pick
+up the new features.
+""" % CMD_NAME
+        return
+
+    for path in argv[1:]:
         p = Package(path)
         d.enable(p)
 
 commands['enable'] = cmd_enable
 commands['en'] = cmd_enable
 
-def cmd_disable(d, args):
-    for path in args[1:]:
+def cmd_disable(d, argv):
+    if len(argv) <= 1 or argv[1].startswith('-'):
+        print """Usage: %s disable PKG [PKG ...]
+
+Undoes the effect of the 'enable' command.  Unlinks the enabled
+package from your home directory, so it won't be loaded by default.
+
+You may have to restart programs this package uses after it is
+disabled.
+""" % CMD_NAME
+        return
+
+    for path in argv[1:]:
         p = Package(path)
         d.disable(p)
 
@@ -694,7 +769,17 @@ commands['dis'] = cmd_disable
 
 def cmd_path(d, argv):
     parser = OptionParser(
-        usage='Usage: %s path [options] HOOK [ENV_VAR]' % CMD_NAME)
+        usage="""Usage: %s path [options] HOOK [ENV_VAR]
+
+The 'path' command generates a list of homectl directories for
+the specified HOOK.  For example, if "bin" is used, path will
+return a list of every directory in which "bin" files may be
+found for this system.
+
+If ENV_VAR is specified, path will merge the list of directories
+with the specified environment variable, removing duplicates.
+This is useful when you want to update an existing variable to
+include homectl paths (for example, PATH). """ % CMD_NAME)
     parser.add_option('-d', '--delimiter', dest='delimiter', default=':',
                       help='Separate directories with DELIMITER (default: %default)')
     parser.add_option('-n', '--newlines', dest='delimiter',
@@ -715,6 +800,13 @@ def cmd_path(d, argv):
 commands['path'] = cmd_path
 
 def cmd_find(d, argv):
+    if len(argv) <= 1 or argv[1].startswith('-'):
+        print """Usage: %s find FILE
+
+This command is deprecated.  Use "path" instead.
+""" % CMD_NAME
+        return
+
     # XXX This is for compatibility with homectl <= 0.2
     for p in d.packages:
         for f in os.listdir(p.path):
