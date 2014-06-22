@@ -14,12 +14,15 @@ __all__ = ['HOME', 'HOMECTL_DIR', 'DEFAULT_HOMECTL_URL',
            'main']
 
 
+VERSION = '0.3'
 
 # System defaults that are hard to change.
 CMD_NAME = 'hc'
 HOME = os.environ['HOME']
 CFG_DIR = os.environ.get('HOMECTL_DIR_NAME', '.homectl')
 DEFAULT_HOMECTL_URL = "git://github.com/josh-berry/homectl.git"
+DEFAULT_HOMECTL_PKGS = ['homectl.hcpkg',
+                        'loader-bash.hcpkg', 'loader-zsh.hcpkg']
 
 ENABLED_LIST = 'enabled-pkgs'
 
@@ -197,7 +200,6 @@ class System(object):
     # and executing programs and logging/returning the results (run()).
 
     def __init__(self, pretend=False):
-        self.default_homectl_url = DEFAULT_HOMECTL_URL
         self.pretend = pretend
 
     @property
@@ -221,7 +223,7 @@ class System(object):
     def log_err(self, msg):
         self.log('!!! %s' % msg)
 
-    def run_and_readlines(self, *args):
+    def run_and_readlines(self, *args, **opts):
         # Runs the specified command; yields lines of output from the command's
         # stdout/stderr (with trailing whitespace stripped, for convenience).
         #
@@ -230,17 +232,18 @@ class System(object):
 
         self.log_cmd(*args)
         proc = subprocess.Popen(args, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, close_fds=True)
+                                stderr=subprocess.STDOUT, close_fds=True,
+                                **opts)
         for line in proc.stdout.readlines():
             self.log_output(line)
             yield line.rstrip()
 
         rc = proc.wait()
         if rc != 0:
-            raise CalledProcessError(rc, args)
+            raise subprocess.CalledProcessError(rc, args)
 
-    def run(self, *args):
-        for l in self.run_and_readlines(*args): pass
+    def run(self, *args, **opts):
+        for l in self.run_and_readlines(*args, **opts): pass
 
     def update_file(self, path, contents):
         self.log_cmd('update', path)
@@ -335,7 +338,7 @@ class Deployment(object):
     def _upgrade(self, old_cfg):
         # Upgrade from homectl <= 0.2 to current
         self.sys.log("")
-        self.sys.log("Upgrading from an older setup in: %s" % old_cfg)
+        self.sys.log("Upgrading from an older deployment in: %s" % old_cfg)
         self.sys.log("")
 
         self.sys.rm_link(self.cfgdir) # also clears self.needs_upgrade
@@ -505,14 +508,157 @@ For help on individual commands, run "cmd --help".
 
 commands['help'] = cmd_help
 
-def cmd_init(d, args):
-    pass
+def cmd_init(d, argv):
+    if len(argv) < 2 or argv[1].startswith('-'):
+        print "Usage: %s init PATH-TO-YOUR-GIT-REPO [pkg pkg ...]" % CMD_NAME
+        return
 
-def cmd_deploy(d, args):
-    pass
+    new_setup = False
+
+    # Stuff to create or update
+    gitrepo = argv[1]
+    readme = os.path.join(gitrepo, 'README.asciidoc')
+    deploy_sh = os.path.join(gitrepo, 'deploy.sh')
+
+    # Stuff to migrate or delete
+    old_enable_d = os.path.join(gitrepo, 'enable.d')
+
+    # Figure out what packages to enable by default
+    cmd_tmpl = '$%(cmd)s enable %(pkg)s\n'
+
+    enable_cmds = ['# Default homectl packages\n']
+    enable_cmds += [cmd_tmpl % {'cmd': CMD_NAME,
+                                'pkg': os.path.join('homectl', p)}
+                    for p in DEFAULT_HOMECTL_PKGS]
+    enable_cmds += ['\n# Your custom packages\n']
+    enable_cmds += [cmd_tmpl % {'cmd': CMD_NAME,
+                                'pkg': os.path.relpath(p, gitrepo)}
+                    for p in argv[2:]]
+
+    if os.path.isdir(old_enable_d):
+        for r, a in visible_links(old_enable_d):
+            pkg = os.readlink(a)
+            pkg = os.path.relpath(os.path.join(old_enable_d, pkg), gitrepo)
+            enable_cmds.append(cmd_tmpl % {'cmd': CMD_NAME, 'pkg': pkg})
+
+    enable_cmd_str = ''.join(enable_cmds)
+
+    # Setup the git repo
+    if not os.path.isdir(gitrepo) or \
+       not os.path.isdir(os.path.join(gitrepo, '.git')):
+        d.sys.run('git', 'init', gitrepo)
+        new_setup = True
+
+    if not os.path.isdir(os.path.join(gitrepo, 'homectl')):
+        d.sys.run('git', 'submodule', 'add', DEFAULT_HOMECTL_URL, 'homectl',
+                  cwd=gitrepo)
+
+    d.sys.update_file(readme, """%(user)s's homectl setup
+================================================================================
+
+This is a Git repository which contains a homectl setup.  homectl is a program
+which manages all the scripts, dot-files, vendor packages, etc. that you tend to
+accumulate over time in your home directory.  Feel free to dump all of these
+things here (or in git submodules linked here).
+
+Quick Deployment
+----------------
+
+All you have to do is:
+
+    $ ./deploy.sh
+
+And all your homectl packages, as they are stored here, will be reconsituted.
+
+WARNING: Once you have deployed, do not rename or move this Git repository.  You
+will break your homectl installation if you do.  (If you have to move it,
+uninstall first and then re-deploy.)
+
+Uninstallation
+--------------
+
+    $ %(cmd)s uninstall
+
+Your Git repository will be left alone but all homectl-created symlinks in your
+home directory will be removed.
+
+Additional Notes
+----------------
+
+NOTE: Be sure to check out the homectl documentation for tips on how to create
+your own homectl packages.
+
+A few files and directories have been included here to start you off.
+
+README.asciidoc::
+    This file.
+
+homectl.hcpkg/::
+    A git submodule containing homectl itself.  It includes the +%(cmd)s+
+    command and its accompaniing documentation.
+
+deploy.sh::
+    A handy, one-step script to run on new machines to instantly deploy your
+    painstakingly-crafted homectl configuration.
+""" % {'user': os.environ['LOGNAME'], 'cmd': CMD_NAME})
+
+    d.sys.run('git', 'add', os.path.basename(readme), cwd=gitrepo)
+
+    d.sys.update_file(deploy_sh, """#!/bin/bash
+
+# This script deploys your homectl setup into your home directory, by enabling
+# a default set of homectl packages.
+
+cd "\$(dirname "\$0")"
+%(cmd)s=./homectl/homectl.hcpkg/bin/%(cmd)s
+
+set -e
+
+git submodule update --init --recursive
+
+%(enable_cmds)s
+""" % {'cmd': CMD_NAME, 'enable_cmds': enable_cmd_str})
+
+    d.sys.run('chmod', 'a+x', deploy_sh)
+    d.sys.run('git', 'add', os.path.basename(deploy_sh), cwd=gitrepo)
+
+    if os.path.isdir(old_enable_d):
+        d.sys.run('git', 'rm', '-r', os.path.basename(old_enable_d),
+                  cwd=gitrepo)
+
+    if new_setup:
+        d.sys.run('git', 'commit', '--author', 'homectl <homectl@(none)>',
+                  '-m', 'New homectl setup', cwd=gitrepo)
+    else:
+        d.sys.run('git', 'commit', '--author', 'homectl <homectl@(none)>',
+                  '-m', 'Update homectl setup to version %s' % VERSION,
+                  cwd=gitrepo)
+
+    d.sys.log('')
+    d.sys.log('If you want to start using this homectl setup,')
+    d.sys.log('you should now run:')
+    d.sys.log('')
+    d.sys.log('    %s' % deploy_sh)
+    d.sys.log('')
+
+commands['init'] = cmd_init
 
 def cmd_upgrade(d, args):
+    enabled_path = os.path.realpath(d.cfgdir)
+    if os.path.basename(enabled_path) == 'enable.d':
+        git_repo_path = os.path.dirname(os.path.realpath(d.cfgdir))
+    else:
+        git_repo_path = '/path/to/your/git/repo'
+
     d.upgrade()
+
+    d.sys.log('')
+    d.sys.log("If you haven't yet upgraded your existing git repo, please run:")
+    d.sys.log('')
+    d.sys.log('    %(cmd)s init %(path)s' % {
+        'cmd': CMD_NAME, 'path': git_repo_path})
+    d.sys.log('')
+
 commands['upgrade'] = cmd_upgrade
 
 def cmd_refresh(d, args):
