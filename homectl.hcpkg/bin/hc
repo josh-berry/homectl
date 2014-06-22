@@ -425,7 +425,7 @@ class Deployment(object):
                                       % home_path)
                 continue
 
-            if rel not in overlay_links or os.readlink(rel) != home_link_text:
+            if rel not in overlay_links or os.readlink(path) != home_link_text:
                 # This is a stale overlay link; remove it
                 self.sys.rm_link(home_path)
 
