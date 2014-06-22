@@ -21,8 +21,7 @@ HOME = os.environ['HOME']
 CFG_DIR = os.environ.get('HOMECTL_DIR_NAME', '.homectl')
 DEFAULT_HOMECTL_URL = "git://github.com/josh-berry/homectl.git"
 
-ENABLED_LIST = 'enable.d'
-
+ENABLED_LIST = 'enabled-pkgs'
 
 # Util functions
 
