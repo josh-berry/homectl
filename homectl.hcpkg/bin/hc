@@ -72,6 +72,28 @@ def fs_files_in(path):
     return ((relp, absp) for relp, absp in fs_tree(path)
             if absp != path and not os.path.isdir(absp))
 
+def sh_quote(text):
+    # Quotes /text/ so it will be interpreted by shells as a single argument.
+    # Takes a paranoid approach -- things that are not known to be safe are
+    # escaped.
+
+
+    bad_chars = re.compile("[^A-Za-z0-9_:.,/+ #!@%^&|<>-]")
+
+    def escape_char(c):
+        if c == "\n": return 'n'
+        if c == "\r": return 'r'
+        if c == "\t": return 't'
+        if c == "\0": return '0'
+        if ord(c) < 128: return c
+        raise ValueError('Invalid character %d' % ord(c))
+
+    text = bad_chars.sub((lambda m: "\\" + escape_char(m.group(0))), text)
+    if ' ' in text:
+        return "\"%s\"" % text
+    else:
+        return text
+
 
 
 class Package(object):
@@ -188,7 +210,7 @@ class System(object):
                 '%s-%s-%s' % (system, rel, machine)]
 
     def log_cmd(self, *args):
-        self.log('$ %s' % ' '.join(args))
+        self.log('$ %s' % ' '.join([sh_quote(a) for a in args]))
 
     def log_output(self, text):
         self.log('  ... %s' % text)
