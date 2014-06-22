@@ -141,8 +141,38 @@ class System(object):
                 '%s-%s' % (system, rel),
                 '%s-%s-%s' % (system, rel, machine)]
 
+    def log_cmd(self, *args):
+        self.log('$ %s' % ' '.join(args))
+
+    def log_output(self, text):
+        self.log('  ... %s' % text)
+
+    def log_warn(self, msg):
+        self.log('!!! %s' % msg)
+
+    def log_err(self, msg):
+        self.log('!!! %s' % msg)
+
+    def run(self, *args):
+        # Runs the specified command; yields lines of output from the command's
+        # stdout/stderr (with trailing whitespace stripped, for convenience).
+        #
+        # On an error, or if the process exits with a non-zero status, raises
+        # subprocess.CalledProcessError.
+
+        self.log_cmd(*args)
+        proc = subprocess.Popen(args, stdout=subprocess.PIPE,
+                                stderr=subprocess.STDOUT, close_fds=True)
+        for line in proc.stdout.readlines():
+            self.log_output(line)
+            yield line.rstrip()
+
+        rc = proc.wait()
+        if rc != 0:
+            raise CalledProcessError(rc, args)
+
     def update_file(self, path, contents):
-        self.log('update %s' % (path,))
+        self.log_cmd('update', path)
         if self.pretend: return
 
         mkdirp(os.path.dirname(path))
@@ -154,34 +184,18 @@ class System(object):
         tgt_dir = os.path.dirname(target)
         link_text = os.path.relpath(src, tgt_dir)
 
-        self.log('ln -s %s %s' % (src, target))
+        self.log_cmd('ln', '-s', src, target)
         if not self.pretend:
             mkdirp(tgt_dir)
             os.symlink(src, target)
 
     def rm_link(self, path):
         if os.path.islink(path):
-            self.log("rm %s" % path)
+            self.log_cmd("rm", path)
             if not self.pretend:
                 os.unlink(path)
         else:
-            self.log("Can't unlink %s: Not a symbolic link" % path)
-
-    def run(self, *args):
-        # Runs the specified command; yields lines of output from the command's
-        # stdout/stderr (with trailing whitespace stripped, for convenience).
-        #
-        # On an error, or if the process exits with a non-zero status, raises
-        # subprocess.CalledProcessError.
-
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, close_fds=True)
-        for line in proc.stdout.readlines():
-            yield line.rstrip()
-
-        rc = proc.wait()
-        if rc != 0:
-            raise CalledProcessError(rc, args)
+            self.log_warn("Can't unlink %s: Not a symbolic link" % path)
 
 
 
@@ -198,8 +212,8 @@ class Deployment(object):
         self.enabled_list = os.path.join(self.cfgdir, ENABLED_LIST)
 
         if self.needs_upgrade:
-            self.sys.log("!!! Your existing homectl needs to be upgraded.")
-            self.sys.log("!!! Run 'hc upgrade'.")
+            self.sys.log_err("Your existing homectl needs to be upgraded.")
+            self.sys.log_err("Run 'hc upgrade'.")
 
     @property
     def needs_upgrade(self):
@@ -298,7 +312,7 @@ class Deployment(object):
             # If this isn't true, leave the link in ~ alone.
             if not os.path.islink(home_path) or \
                os.readlink(home_path) != home_link_text:
-                self.sys.log("!!! Won't replace existing file: %s" % home_path)
+                self.sys.log_warn("Won't touch existing file: %s" % home_path)
                 continue
 
             if rel not in overlay_links:
@@ -345,19 +359,7 @@ class Deployment(object):
 
 class ConsoleSystem(System):
     def log(self, msg):
-        print msg
-
-    def run(self, *args):
-        print "$ %s" % ' '.join(args)
-
-        try:
-            for line in System.run(self, *args):
-                print "... %s" % line
-
-        except subprocess.CalledProcessError, e:
-            print "!!! Command failed (rc = %d): %s" % (
-                e.returncode, ' '.join(args))
-            raise e
+        print msg.rstrip()
 
 
 
