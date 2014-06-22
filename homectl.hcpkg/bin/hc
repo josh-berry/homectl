@@ -538,8 +538,11 @@ def cmd_path(d, argv):
 commands['path'] = cmd_path
 
 def cmd_find(d, argv):
-    for f in d.hook_files(argv[1]):
-        print f
+    # XXX This is for compatibility with homectl <= 0.2
+    for p in d.packages:
+        for f in os.listdir(p.path):
+            if f == argv[1]:
+                print os.path.join(p.path, f)
 commands['find'] = cmd_find
 
 def main(d, argv):
