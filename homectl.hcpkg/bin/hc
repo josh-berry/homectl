@@ -420,10 +420,12 @@ class Deployment(object):
 
             # If this isn't true, leave the link in ~ alone.
             if not os.path.islink(home_path):
-                self.sys.log_warn("Won't touch existing file: %s" % home_path)
+                if os.path.exists(home_path):
+                    self.sys.log_warn("Won't touch existing file: %s"
+                                      % home_path)
                 continue
 
-            if rel not in overlay_links:
+            if rel not in overlay_links or os.readlink(rel) != home_link_text:
                 # This is a stale overlay link; remove it
                 self.sys.rm_link(home_path)
 
@@ -444,7 +446,7 @@ class Deployment(object):
         for rel in overlay_links:
             home_path = os.path.join(self.homedir, rel)
             cfg_path = os.path.join(overlay_path, rel)
-            link_text = os.path.relpath(cfg_path, home_path)
+            link_text = os.path.relpath(cfg_path, os.path.dirname(home_path))
 
             if not os.path.exists(home_path):
                 self.sys.mk_link(link_text, home_path)
