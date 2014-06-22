@@ -525,7 +525,7 @@ commands['disable'] = cmd_disable
 commands['dis'] = cmd_disable
 
 def cmd_path(d, argv):
-    parser = OptionParser(usage='Usage: hc path [options] HOOK')
+    parser = OptionParser(usage='Usage: hc path [options] HOOK [ENV_VAR]')
     parser.add_option('-d', '--delimiter', dest='delimiter', default=':',
                       help='Separate directories with DELIMITER (default: %default)')
     parser.add_option('-n', '--newlines', dest='delimiter',
@@ -533,7 +533,15 @@ def cmd_path(d, argv):
                       help='Separate directories with newlines.')
     options, args = parser.parse_args(argv)
 
-    print options.delimiter.join(d.hook_dirs(args[1]))
+    dirs = collections.OrderedDict()
+    for p in d.hook_dirs(args[1]):
+        dirs[p] = ''
+
+    if len(args) > 2 and args[2] in os.environ:
+        for p in os.environ[args[2]].split(':'):
+            dirs[p] = ''
+
+    print options.delimiter.join(dirs.keys())
 
 commands['path'] = cmd_path
 
