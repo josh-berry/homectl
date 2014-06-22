@@ -419,8 +419,7 @@ class Deployment(object):
             # corresponding link from ~/... to $cfgdir/common/overlay/...
 
             # If this isn't true, leave the link in ~ alone.
-            if not os.path.islink(home_path) or \
-               os.readlink(home_path) != home_link_text:
+            if not os.path.islink(home_path):
                 self.sys.log_warn("Won't touch existing file: %s" % home_path)
                 continue
 
