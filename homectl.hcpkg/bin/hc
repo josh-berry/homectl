@@ -16,6 +16,7 @@ __all__ = ['HOME', 'HOMECTL_DIR', 'DEFAULT_HOMECTL_URL',
 
 
 # System defaults that are hard to change.
+CMD_NAME = 'hc'
 HOME = os.environ['HOME']
 CFG_DIR = os.environ.get('HOMECTL_DIR_NAME', '.homectl')
 DEFAULT_HOMECTL_URL = "git://github.com/josh-berry/homectl.git"
@@ -315,7 +316,7 @@ class Deployment(object):
 
         if self.needs_upgrade:
             self.sys.log_err("Your existing homectl needs to be upgraded.")
-            self.sys.log_err("Run 'hc upgrade'.")
+            self.sys.log_err("Run '%s upgrade'." % CMD_NAME)
 
     @property
     def needs_upgrade(self):
@@ -323,7 +324,7 @@ class Deployment(object):
 
     def _assert_current_ver(self):
         if self.needs_upgrade:
-            raise IOError('Please run "hc upgrade".')
+            raise IOError('Please run "%s upgrade".' % CMD_NAME)
 
     def upgrade(self):
         if not self.needs_upgrade:
@@ -547,7 +548,8 @@ commands['disable'] = cmd_disable
 commands['dis'] = cmd_disable
 
 def cmd_path(d, argv):
-    parser = OptionParser(usage='Usage: hc path [options] HOOK [ENV_VAR]')
+    parser = OptionParser(
+        usage='Usage: %s path [options] HOOK [ENV_VAR]' % CMD_NAME)
     parser.add_option('-d', '--delimiter', dest='delimiter', default=':',
                       help='Separate directories with DELIMITER (default: %default)')
     parser.add_option('-n', '--newlines', dest='delimiter',
