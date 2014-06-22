@@ -199,7 +199,7 @@ class System(object):
     def log_err(self, msg):
         self.log('!!! %s' % msg)
 
-    def run(self, *args):
+    def run_and_readlines(self, *args):
         # Runs the specified command; yields lines of output from the command's
         # stdout/stderr (with trailing whitespace stripped, for convenience).
         #
@@ -216,6 +216,9 @@ class System(object):
         rc = proc.wait()
         if rc != 0:
             raise CalledProcessError(rc, args)
+
+    def run(self, *args):
+        for l in self.run_and_readlines(*args): pass
 
     def update_file(self, path, contents):
         self.log_cmd('update', path)
@@ -436,6 +439,14 @@ class Deployment(object):
             p for p in self.packages
             if os.path.realpath(p.path) != os.path.realpath(pkg.path)]
 
+    def uninstall(self):
+        self.packages = []
+        self.sys.run('rm', '-rf', self.cfgdir)
+
+        self.sys.log('')
+        self.sys.log('homectl has been uninstalled.')
+        self.sys.log('')
+
 
 
 class ConsoleSystem(System):
@@ -488,7 +499,8 @@ commands['refresh'] = cmd_refresh
 commands['ref'] = cmd_refresh
 
 def cmd_uninstall(d, args):
-    pass
+    d.uninstall()
+commands['uninstall'] = cmd_uninstall
 
 def cmd_list(d, args):
     for p in d.packages:
