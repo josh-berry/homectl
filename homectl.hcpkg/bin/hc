@@ -254,9 +254,15 @@ class System(object):
             f.write(contents)
         os.rename(path + '.tmp', path)
 
-    def mk_link(self, src, target):
+    def update_link(self, src, target):
         tgt_dir = os.path.dirname(target)
         link_text = os.path.relpath(src, tgt_dir)
+
+        if os.path.islink(target):
+            if os.path.readlink(target) == src:
+                # Link already in place; nothing to do
+                return
+            self.rm_link(target)
 
         self.log_cmd('ln', '-s', src, target)
         if not self.pretend:
@@ -413,7 +419,6 @@ class Deployment(object):
         # ~.
         for rel, path in fs_tree(overlay_path):
             home_path = os.path.join(self.homedir, rel)
-            home_link_text = os.path.relpath(path, os.path.dirname(home_path))
 
             # For each link in $cfgdir/common/overlay, we expect there to be a
             # corresponding link from ~/... to $cfgdir/common/overlay/...
@@ -425,31 +430,31 @@ class Deployment(object):
                                       % home_path)
                 continue
 
-            if rel not in overlay_links or os.readlink(path) != home_link_text:
+            if rel not in overlay_links:
                 # This is a stale overlay link; remove it
                 self.sys.rm_link(home_path)
 
         # Remove any link in the cfgdir that doesn't match what we expect.
         for rel, path in fs_tree(self.cfgdir):
             if not os.path.islink(path): continue
-            if rel not in link_map or os.readlink(path) != link_map[rel]:
+            if rel not in link_map:
                 self.sys.rm_link(path)
 
-        # Create any missing links in $cfgdir.
+        # Update all the links in $cfgdir.
         for rel, text in link_map.iteritems():
             # Create in $cfgdir
             lnk = os.path.join(self.cfgdir, rel)
             if not os.path.lexists(lnk):
-                self.sys.mk_link(text, lnk)
+                self.sys.update_link(text, lnk)
 
-        # Now create any missing links from ~ to $cfgdir.
+        # Now update any missing/old links from ~ to $cfgdir.
         for rel in overlay_links:
             home_path = os.path.join(self.homedir, rel)
             cfg_path = os.path.join(overlay_path, rel)
             link_text = os.path.relpath(cfg_path, os.path.dirname(home_path))
 
-            if not os.path.exists(home_path):
-                self.sys.mk_link(link_text, home_path)
+            if not os.path.lexists(home_path):
+                self.sys.update_link(link_text, home_path)
 
         # XXX cleanup empty dirs in $cfgdir
 
