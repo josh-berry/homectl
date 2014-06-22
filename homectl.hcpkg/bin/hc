@@ -301,6 +301,10 @@ class Deployment(object):
             raise IOError('Please run "hc upgrade".')
 
     def upgrade(self):
+        if not self.needs_upgrade:
+            self.sys.log("No upgrade required.")
+            return
+
         self._upgrade(os.path.realpath(self.cfgdir))
 
     def _upgrade(self, old_cfg):
