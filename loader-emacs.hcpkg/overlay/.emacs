@@ -152,10 +152,12 @@ environment."
   (setq exec-path (append (split-string (getenv "PATH") ":" t) exec-path))
   (setq load-path (append (process-lines homectl-bin "path" "emacs")
                           load-path))
+  (setq load-path (append (process-lines homectl-bin "path" "emacs-startup")
+                          load-path))
 
-  ; Load all emacs packages from homectl
-  (dolist (pdir (process-lines homectl-bin "path" "emacs"))
-    (dolist (f (directory-files pdir nil "^[^.].*\.el"))
+  ; Load all emacs startup packages from homectl
+  (dolist (pdir (process-lines homectl-bin "path" "emacs-startup"))
+    (dolist (f (directory-files pdir nil "^[^.].*\\.el"))
       (let ((pkg (replace-regexp-in-string "\.el$" "" f)))
         (message "[homectl] Loading %s" pkg)
         (require (intern pkg)))))
