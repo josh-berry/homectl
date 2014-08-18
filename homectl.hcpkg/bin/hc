@@ -651,17 +651,22 @@ git submodule update --init --recursive
     if new_setup:
         d.sys.run('git', 'commit', '--author', 'homectl <homectl@(none)>',
                   '-m', 'New homectl setup', cwd=gitrepo)
+
+        d.sys.log('')
+        d.sys.log('If you want to start using this homectl setup,')
+        d.sys.log('you should now run:')
+        d.sys.log('')
+        d.sys.log('    %s' % deploy_sh)
+        d.sys.log('')
+
     else:
         d.sys.run('git', 'commit', '--author', 'homectl <homectl@(none)>',
                   '-m', 'Update homectl setup to version %s' % VERSION,
                   cwd=gitrepo)
 
-    d.sys.log('')
-    d.sys.log('If you want to start using this homectl setup,')
-    d.sys.log('you should now run:')
-    d.sys.log('')
-    d.sys.log('    %s' % deploy_sh)
-    d.sys.log('')
+        d.sys.log('')
+        d.sys.log('Your homectl setup has been upgraded.')
+        d.sys.log('')
 
 commands['init'] = cmd_init
 
