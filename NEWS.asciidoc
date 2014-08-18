@@ -3,6 +3,59 @@ News for homectl
 
 :toc:
 
+Version 0.3.0
+-------------
+
+Not Yet Released
+
+.Incompatible Changes
+
+* The `homectl` command has been completely rewritten in Python, and the command
+  name has been shortened to `hc`.  The old `homectl` shell script still exists,
+  to aid existing users in upgrading.
+
+* The `~/.homectl` directory is now a Homebrew-style tree of symlinks to
+  individual files in enabled packages.  Enabled packages are now tracked in an
+  `enabled-pkgs` file, rather than as a directory of symlinks.  To upgrade your
+  existing deployment and setup, run:
+
+------------------------------------------------------------------------------
+$ homectl refresh
+$ rehash                       # if needed by your shell
+
+$ hc upgrade
+$ hc init ~/your-home-setup    # this is not destructive, don't worry :)
+------------------------------------------------------------------------------
+
+.New Features
+
+* The new Python implementation is much faster.
+
+* Homectl now understands different machine and OS types, via the notion of
+  *systems*.  See link:doc/customization.asciidoc[] for more details.
+
+* `hc upgrade` performs most of the manual labor required to convert a homectl
+  0.2 setup and deployment to a homectl 0.3 setup and deployment.
+
+* `hc path` discovers where homectl files live, and computes updated
+  environment variables such as `$PATH`.
+
+* `loader-emacs.hcpkg` loads Emacs packages directly from the new
+  `emacs-startup` hook.  It uses `(require)` to ensure package dependencies are
+  respected.
+
+* More documentation, especially on how to create your own packages.
+
+.Bugs Fixed
+
+* `loader-emacs.hcpkg` now unconditionally refreshes the `package.el` package
+  list if it needs to install a missing package.  This ensures the package list
+  is always available.
+
+.Bugs Introduced
+
+* Probably a few, since this is a rewrite.
+
 Version 0.2.0
 -------------
 

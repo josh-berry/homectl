@@ -64,8 +64,7 @@ $ ~/homectl-setup/deploy.sh
 
 .Next Steps:
 
-  * Restart your shell, and use the +homectl+ command to enable and disable
-    packages.
+  * Restart your shell, and use the +hc+ command to enable and disable packages.
 
   * Read link:doc/customization.asciidoc[] to learn how to create your own
     homectl packages.
@@ -89,10 +88,6 @@ We suggest you read these in order.
 
 link:doc/customization.asciidoc[]::
     The anatomy of a homectl package, and how to create your own.
-
-Not yet written::
-    How homectl itself is laid out (e.g. what the files, directories and
-    included packages are).
 
 link:doc/hacking.asciidoc[]::
     A quick guide to hacking on homectl itself.  Covers high-level design
