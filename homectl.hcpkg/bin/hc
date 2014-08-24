@@ -318,10 +318,10 @@ class Deployment(object):
     def __init__(self, system, homedir=HOME, cfgdir=None):
         self.sys = system
 
-        self.homedir = homedir
+        self.homedir = os.path.realpath(homedir)
 
         if not cfgdir:
-            cfgdir = os.path.join(homedir, CFG_DIR)
+            cfgdir = os.path.join(self.homedir, CFG_DIR)
         self.cfgdir = cfgdir
 
         self.enabled_list = os.path.join(self.cfgdir, ENABLED_LIST)
@@ -411,7 +411,10 @@ class Deployment(object):
             for (s, h, f), path in p.file_map():
                 cfgrel = os.path.join(s, h, f)
                 cfgabsdir = os.path.join(self.cfgdir, os.path.dirname(cfgrel))
-                link_text = os.path.relpath(path, cfgabsdir)
+                if not path.startswith(self.homedir):
+                    link_text = path # use the abs path since it's outside ~
+                else:
+                    link_text = os.path.relpath(path, cfgabsdir)
 
                 link_map[cfgrel] = link_text
                 if s == 'common' and h == 'overlay':
