@@ -259,10 +259,14 @@ class System(object):
         link_text = os.path.relpath(src, tgt_dir)
 
         if os.path.islink(target):
-            if os.path.readlink(target) == src:
+            if os.readlink(target) == src:
                 # Link already in place; nothing to do
                 return
             self.rm_link(target)
+
+        elif os.path.exists(target):
+            self.log_warn("Won't touch existing file: %s" % target)
+            return
 
         self.log_cmd('ln', '-s', src, target)
         if not self.pretend:
@@ -444,8 +448,7 @@ class Deployment(object):
         for rel, text in link_map.iteritems():
             # Create in $cfgdir
             lnk = os.path.join(self.cfgdir, rel)
-            if not os.path.lexists(lnk):
-                self.sys.update_link(text, lnk)
+            self.sys.update_link(text, lnk)
 
         # Now update any missing/old links from ~ to $cfgdir.
         for rel in overlay_links:
@@ -453,8 +456,7 @@ class Deployment(object):
             cfg_path = os.path.join(overlay_path, rel)
             link_text = os.path.relpath(cfg_path, os.path.dirname(home_path))
 
-            if not os.path.lexists(home_path):
-                self.sys.update_link(link_text, home_path)
+            self.sys.update_link(link_text, home_path)
 
         # XXX cleanup empty dirs in $cfgdir
 
