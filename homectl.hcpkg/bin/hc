@@ -800,15 +800,17 @@ include homectl paths (for example, PATH). """ % CMD_NAME)
                       help='Separate directories with newlines.')
     options, args = parser.parse_args(argv)
 
-    dirs = collections.OrderedDict()
+    dirs = []
     for p in d.hook_dirs(args[1]):
-        dirs[p] = ''
+        if p not in dirs:
+            dirs.append(p)
 
     if len(args) > 2 and args[2] in os.environ:
         for p in os.environ[args[2]].split(':'):
-            dirs[p] = ''
+            if p not in dirs:
+                dirs.append(p)
 
-    print options.delimiter.join(dirs.keys())
+    print options.delimiter.join(dirs)
 
 commands['path'] = cmd_path
 
