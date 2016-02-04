@@ -137,6 +137,15 @@ class Package(object):
 
         self.path = os.path.abspath(path)
 
+    def __eq__(self, other):
+        return os.path.realpath(self.path) == os.path.realpath(other.path)
+
+    def __ne__(self, other):
+        return not (self == other)
+
+    def __hash__(self):
+        return hash(os.path.realpath(self.path))
+
     @property
     def systems(self):
         yield 'common'
@@ -160,6 +169,12 @@ class Package(object):
 
     def files_in_sys_hook(self, system, hook):
         return fs_files_in(self._hook_dir(system, hook))
+
+    def trigger_path(self, trigger):
+        tpath = os.path.join(self.path, "%s.trigger" % (trigger,))
+        if os.path.isfile(tpath) and os.access(tpath, os.X_OK):
+            return tpath
+        return None
 
     #
     # Derived Functionality
@@ -375,6 +390,11 @@ class Deployment(object):
     @packages.setter
     def packages(self, pkgs):
         self._assert_current_ver()
+
+        # Run removal triggers
+        for pkg in set(self.packages) - set(pkgs):
+            self.run_pkg_trigger(pkg, "disable")
+
         pkg_paths = sorted(set([os.path.relpath(p.path, self.homedir)
                                 for p in pkgs]))
 
@@ -397,6 +417,15 @@ class Deployment(object):
             for r, a in fs_tree(d):
                 if os.path.islink(a):
                     yield r, a
+
+    def run_pkg_trigger(self, pkg, trigger, *args):
+        tpath = pkg.trigger_path(trigger)
+        if tpath:
+            try:
+                self.sys.run(tpath, *args)
+                return 0
+            except subprocess.CalledProcessError, e:
+                return e.returncode
 
     def refresh(self):
         self._assert_current_ver()
@@ -462,6 +491,10 @@ class Deployment(object):
             self.sys.update_link(link_text, home_path)
 
         # XXX cleanup empty dirs in $cfgdir
+
+        # Run post-refresh triggers so packages can ensure everything is okay
+        for p in self.packages:
+            self.run_pkg_trigger(p, "refresh")
 
     #
     # Derived methods (implemented only in terms of the above)
