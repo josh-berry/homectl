@@ -33,6 +33,8 @@ def mkdirp(path):
         os.makedirs(path)
 
 def visible_dirs(path):
+    # Lists all the visible directories, or symlinks to directories, within
+    # /path/.  Yields a series of ("name", "path/name") tuples.
     for d in os.listdir(path):
         if d[0] == '.': continue
         p = os.path.join(path, d)
@@ -40,6 +42,8 @@ def visible_dirs(path):
             yield d, p
 
 def visible_links(path):
+    # Lists all the visible symlinks within /path/.  Yields a series of
+    # ("name", "path/name") tuples.
     for d in os.listdir(path):
         if d[0] == '.': continue
         p = os.path.join(path, d)
@@ -47,8 +51,7 @@ def visible_links(path):
             yield d, p
 
 def fs_tree(path):
-    # List all the files, directories, etc. in /path/, including /path/
-    # itself.  Works like "find $path" would.
+    # List all the files, directories, etc. in /path/, recursively.
     #
     # As a convenience, for each entry, yields a tuple of two paths:
     #
@@ -61,27 +64,26 @@ def fs_tree(path):
         if ent in ['.', '..']: continue
         entp = os.path.join(path, ent)
 
+        yield ent, entp
+
         # We treat symlinks as regular files to avoid directory loops, and
         # because that's generally what we want in homectl packages
-        if os.path.islink(entp) or not os.path.isdir(entp):
-            yield ent, entp
-        else:
+        if os.path.isdir(entp) and not os.path.islink(entp):
             for relp, absp in fs_tree(entp):
                 yield os.path.join(ent, relp), absp
 
 def fs_files_in(path):
     # List all the files in /path/.  /path/ is expected to be a directory; if it
-    # is not, returns no values.
+    # is not, returns no values.  Assumes that all symlinks are files.
     return ((relp, absp) for relp, absp in fs_tree(path)
-            if absp != path and not os.path.isdir(absp))
+            if os.path.islink(absp) or not os.path.isdir(absp))
 
 def sh_quote(text):
     # Quotes /text/ so it will be interpreted by shells as a single argument.
     # Takes a paranoid approach -- things that are not known to be safe are
     # escaped.
 
-
-    bad_chars = re.compile("[^A-Za-z0-9_:.,/+ #!@%^&|<>-]")
+    bad_chars = re.compile("[^A-Za-z0-9_ .,/+-]")
 
     def escape_char(c):
         if c == "\n": return 'n'
@@ -163,12 +165,22 @@ class Package(object):
         return os.path.join(self._system_dir(system), hook)
 
     def hooks_in_system(self, system):
-        for name, path in visible_dirs(self._system_dir(system)):
+        # Yields a list of hooks present in the specified system.  If the
+        # requested system doesn't exist, doesn't yield anything.
+        d = self._system_dir(system)
+        if not os.path.isdir(d): return
+
+        for name, path in visible_dirs(d):
             if not re.match('^[A-Z].*', name):
                 yield name
 
     def files_in_sys_hook(self, system, hook):
-        return fs_files_in(self._hook_dir(system, hook))
+        # Yields a list of files present in the specified system/hook,
+        # recursively, in the style of fs_files_in().  If the requested system
+        # and/or hook doesn't exist, doesn't yield anything.
+        d = self._hook_dir(system, hook)
+        if not os.path.isdir(d): return []
+        return fs_files_in(d)
 
     def trigger_path(self, trigger):
         tpath = os.path.join(self.path, "%s.trigger" % (trigger,))
@@ -414,7 +426,7 @@ class Deployment(object):
         self._assert_current_ver()
 
         for d in self.hook_dirs(hook):
-            for r, a in fs_tree(d):
+            for r, a in fs_files_in(d):
                 if os.path.islink(a):
                     yield r, a
 
@@ -453,7 +465,7 @@ class Deployment(object):
         # discover overlay links by scanning $cfgdir/common/overlay (before
         # removing anything from it), so we don't have to do a recursive scan of
         # ~.
-        for rel, path in fs_tree(overlay_path):
+        for rel, path in fs_files_in(overlay_path):
             home_path = os.path.join(self.homedir, rel)
 
             # For each link in $cfgdir/common/overlay, we expect there to be a
@@ -471,7 +483,7 @@ class Deployment(object):
                 self.sys.rm_link(home_path)
 
         # Remove any link in the cfgdir that doesn't match what we expect.
-        for rel, path in fs_tree(self.cfgdir):
+        for rel, path in fs_files_in(self.cfgdir):
             if not os.path.islink(path): continue
             if rel not in link_map:
                 self.sys.rm_link(path)
