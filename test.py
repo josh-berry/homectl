@@ -70,6 +70,18 @@ class UtilTest(HomectlTest):
 
     DATA = pj(TESTDATA_DIR, 'util')
 
+    def test_mkdirp(self):
+        hc.mkdirp('') # should do nothing
+        hc.mkdirp('.') # should do nothing
+        hc.mkdirp('..') # should do nothing
+
+        hc.mkdirp('foo')
+        self.assertEquals(os.path.isdir('foo'), True)
+
+        hc.mkdirp(pj('outer', 'inner'))
+        self.assertEquals(os.path.isdir('outer'), True)
+        self.assertEquals(os.path.isdir(pj('outer', 'inner')), True)
+
     def test_visible_dirs(self):
         self.assertEqual(
             set(hc.visible_dirs(self.DATA)),

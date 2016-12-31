@@ -29,6 +29,7 @@ ENABLED_LIST = 'enabled-pkgs'
 # Util functions
 
 def mkdirp(path):
+    if path == '': return
     if not os.path.isdir(path):
         os.makedirs(path)
 
