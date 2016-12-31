@@ -281,6 +281,7 @@ class System(object):
         with open(path + '.tmp', 'w') as f:
             f.write(contents)
         os.rename(path + '.tmp', path)
+        # XXX Should make sure permissions, etc. match the old file
 
     def update_link(self, src, target):
         tgt_dir = os.path.dirname(target)

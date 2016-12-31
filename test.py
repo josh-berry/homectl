@@ -6,6 +6,7 @@ import shutil
 import imp
 import unittest
 import tempfile
+import subprocess
 
 pj = os.path.join
 
@@ -229,8 +230,39 @@ class SystemTest(HomectlTest):
     # testable, since it's just a thin wrapper around the Python/OS interface.
     # I'm not going to bother testing trivial functionality.
 
-    # XXX
-    pass
+    class MockSystem(hc.System):
+        def log(self, *args, **kw): pass
+
+    def test_run_and_readlines(self):
+        s = self.MockSystem()
+        self.assertEqual(
+            list(s.run_and_readlines("echo", "Hello")),
+            ["Hello"])
+        self.assertEqual(list(s.run_and_readlines("true")), [])
+        with self.assertRaises(subprocess.CalledProcessError):
+            for l in s.run_and_readlines("false"): pass
+
+    def test_update_file(self):
+        s = self.MockSystem()
+        s.update_file("foo", "bar")
+        self.assertEqual(file("foo", "r").read(), "bar")
+        s.update_file("foo", "other")
+        self.assertEqual(file("foo", "r").read(), "other")
+
+    def test_update_link(self):
+        s = self.MockSystem()
+        s.update_link(pj("foo", "bar"), "f")
+        self.assertEqual(os.readlink("f"), pj("foo", "bar"))
+
+        # XXX Use pj() here, if we want this to work on Windows ever...
+        s.update_link("/dev/null", "f")
+        self.assertEqual(os.readlink("f"), "/dev/null")
+
+    def test_rm_link(self):
+        s = self.MockSystem()
+        s.update_link("f", "f")
+        s.rm_link("f")
+        self.assertEqual(os.path.exists("f"), False)
 
 
 
