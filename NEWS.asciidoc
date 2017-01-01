@@ -56,7 +56,7 @@ $ hc init ~/your-home-setup    # this is not destructive, don't worry :)
   hookdir instead.  The old behavior will be removed in homectl 0.4.
 
 * `homectl find` (or `hc find`, as it's now called) has been deprecated in favor
-  of `hc files`.
+  of `hc files`.  `hc find` will be removed in homectl 0.4.
 
 * `loader-bash` and `loader-zsh`: The previous mechanism of sourcing `shell.*`
   and `env.*` files during shell startup is deprecated and will be removed in
