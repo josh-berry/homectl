@@ -46,6 +46,15 @@ $ hc init ~/your-home-setup    # this is not destructive, don't worry :)
 
 * More documentation, especially on how to create your own packages.
 
+.Deprecations
+
+* `loader-emacs.hcpkg`: The previous method of running `emacs.el` files during
+  startup is now deprecated.  Place startup packages in the `emacs-startup`
+  hookdir instead.  The old behavior will be removed in homectl 0.4.
+
+* `homectl find` (or `hc find`, as it's now called) has been deprecated in favor
+  of `hc path`.
+
 .Bugs Fixed
 
 * `loader-emacs.hcpkg` now unconditionally refreshes the `package.el` package
@@ -54,7 +63,8 @@ $ hc init ~/your-home-setup    # this is not destructive, don't worry :)
 
 .Bugs Introduced
 
-* Probably a few, since this is a rewrite.
+* Probably a few, since this is a rewrite.  Hopefully the new unit tests caught
+  most of them. :)
 
 Version 0.2.0
 -------------
