@@ -17,7 +17,7 @@ if [[ -x ~/.homectl/common/bin/hc ]]; then
 fi
 
 
-homectl-run-hooks() {
+homectl-run-hooks-deprecated() {
     local hook="$1"
     shift
 
@@ -34,4 +34,17 @@ homectl-run-hooks() {
     done
 }
 
+homectl-run-hooks() {
+    local hook="$1"
+    shift
+
+    for f in $(hc find shell-$hook '*.sh'); do
+        source "$f"
+    done
+    for f in $(hc find shell-$hook '*.zsh'); do
+        source "$f"
+    done
+}
+
+homectl-run-hooks-deprecated env
 homectl-run-hooks env

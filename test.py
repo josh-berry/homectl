@@ -502,6 +502,22 @@ class DeploymentTest(HomectlTest):
         # Trigger should have run
         self.assertTrue(os.path.exists('triggered'))
 
+    @with_deployment
+    def test_hook_tree(self, d):
+        plat = os.uname()[0]
+        d.packages = [hc.Package(self.FULL)]
+
+        self.assertEqual(
+            set(d.hook_tree('bin', 'h*')),
+            set([os.path.abspath(f) for f in [
+                pj('.homectl', 'common', 'bin', 'hello')
+            ]]))
+        self.assertEqual(
+            set(d.hook_tree('bin', 'b*')),
+            set([os.path.abspath(f) for f in [
+                pj('.homectl', plat, 'bin', 'bye')
+            ]]))
+
 
 
 class InitUpgradeTest(HomectlTest):

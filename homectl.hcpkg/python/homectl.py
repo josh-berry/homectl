@@ -6,6 +6,7 @@ import re
 import subprocess
 import collections
 from optparse import OptionParser
+import fnmatch
 
 # If we are imported as a module, this is our API.
 __all__ = ['HOME', 'HOMECTL_DIR', 'DEFAULT_HOMECTL_URL',
@@ -340,7 +341,7 @@ class Deployment(object):
     # used for dot-files and other config files.
     #
     # The contents of all enabled packages may be queried using the hook_dirs()
-    # nd hook_files() calls.  The former lists all directories for a hook which
+    # and hook_tree() calls.  The former lists all directories for a hook which
     # apply to the current system.  The latter enumerates all the files within a
     # particular hook which apply to the current system.
 
@@ -424,13 +425,13 @@ class Deployment(object):
             if os.path.isdir(p):
                 yield p
 
-    def hook_files(self, hook):
+    def hook_tree(self, hook, glob=None):
         self._assert_current_ver()
 
         for d in self.hook_dirs(hook):
-            for r, a in fs_files_in(d):
-                if os.path.islink(a):
-                    yield r, a
+            for r, a in fs_tree(d):
+                if not glob or fnmatch.fnmatch(r, glob):
+                    yield a
 
     def run_pkg_trigger(self, pkg, trigger, *args):
         tpath = pkg.trigger_path(trigger)
@@ -864,11 +865,35 @@ include homectl paths (for example, PATH). """ % CMD_NAME)
 
 commands['path'] = cmd_path
 
+def cmd_files(d, argv):
+    parser = OptionParser(
+        usage="""Usage: %s files [options] HOOK [GLOB]
+
+The 'files' command searches through the specified HOOK for files that match
+GLOB (which may also be a path).
+
+This is equivalent to (but more convenient than) using "hc path" and searching
+each returned path with "find -path GLOB". """ % CMD_NAME)
+    parser.add_option('-d', '--delimiter', dest='delimiter', default=' ',
+                      help="Separate files with DELIMITER (default: '%default')")
+    parser.add_option('-n', '--newlines', dest='delimiter',
+                      action='store_const', const="\n",
+                      help='Separate files with newlines.')
+    options, args = parser.parse_args(argv)
+
+    if len(args) not in (2, 3):
+        parser.print_usage()
+        sys.exit(1)
+
+    print options.delimiter.join([a for r, a in d.hook_tree(*args[1:])])
+
+commands['files'] = cmd_files
+
 def cmd_find(d, argv):
     if len(argv) <= 1 or argv[1].startswith('-'):
         print """Usage: %s find FILE
 
-This command is deprecated.  Use "path" instead.
+This command is deprecated.  Use "path" or "files" instead.
 """ % CMD_NAME
         return
 
