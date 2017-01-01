@@ -8,11 +8,12 @@ Version 0.3.0
 
 Not Yet Released
 
-.Incompatible Changes
+.User Actions Required to Upgrade
 
 * The `homectl` command has been completely rewritten in Python, and the command
-  name has been shortened to `hc`.  The old `homectl` shell script still exists,
-  to aid existing users in upgrading.
+  name has been shortened to `hc`.  You should switch to using the new `hc`
+  command instead.  The old `homectl` shell script still exists to aid in
+  upgrading, but it will be removed in homectl 0.4.
 
 * The `~/.homectl` directory is now a Homebrew-style tree of symlinks to
   individual files in enabled packages.  Enabled packages are now tracked in an
@@ -50,6 +51,10 @@ $ hc init ~/your-home-setup    # this is not destructive, don't worry :)
 * More documentation, especially on how to create your own packages.
 
 .Deprecations
+
+* As mentioned above, `homectl` has been renamed to `hc`.  The original
+  `homectl` command, and its companion `homectl-resolve-path` tool, will be
+  removed in homectl 0.4.
 
 * `loader-emacs.hcpkg`: The previous method of running `emacs.el` files during
   startup is now deprecated.  Place startup packages in the `emacs-startup`
