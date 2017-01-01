@@ -41,8 +41,8 @@ $ hc init ~/your-home-setup    # this is not destructive, don't worry :)
 * `hc path` discovers where homectl files live, and computes updated
   environment variables such as `$PATH`.
 
-* `hc files` searches for files within hook dirs in your packages, similar to
-  how `find $hook_dirs -path ...` works.
+* `hc tree` searches for files and directories within hook dirs in your
+  packages, similar to how `find $hook_dirs -path ...` works.
 
 * `loader-emacs.hcpkg` loads Emacs packages directly from the new
   `emacs-startup` hook.  It uses `(require)` to ensure package dependencies are
@@ -61,7 +61,7 @@ $ hc init ~/your-home-setup    # this is not destructive, don't worry :)
   hookdir instead.  The old behavior will be removed in homectl 0.4.
 
 * `homectl find` (or `hc find`, as it's now called) has been deprecated in favor
-  of `hc files`.  `hc find` will be removed in homectl 0.4.
+  of `hc tree`.  `hc find` will be removed in homectl 0.4.
 
 * `loader-bash` and `loader-zsh`: The previous mechanism of sourcing `shell.*`
   and `env.*` files during shell startup is deprecated and will be removed in

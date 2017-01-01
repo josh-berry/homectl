@@ -865,29 +865,29 @@ include homectl paths (for example, PATH). """ % CMD_NAME)
 
 commands['path'] = cmd_path
 
-def cmd_files(d, argv):
+def cmd_tree(d, argv):
     parser = OptionParser(
-        usage="""Usage: %s files [options] HOOK [GLOB]
+        usage="""Usage: %s tree [options] HOOK [GLOB]
 
-The 'files' command searches through the specified HOOK for files that match
-GLOB (which may also be a path).
+The 'tree' command searches through the specified HOOK for files and directories
+that match GLOB (which may also be a path).
 
 This is equivalent to (but more convenient than) using "hc path" and searching
 each returned path with "find -path GLOB". """ % CMD_NAME)
     parser.add_option('-d', '--delimiter', dest='delimiter', default=' ',
-                      help="Separate files with DELIMITER (default: '%default')")
+                      help="Separate items with DELIMITER (default: '%default')")
     parser.add_option('-n', '--newlines', dest='delimiter',
                       action='store_const', const="\n",
-                      help='Separate files with newlines.')
+                      help='Separate items with newlines.')
     options, args = parser.parse_args(argv)
 
     if len(args) not in (2, 3):
         parser.print_usage()
         sys.exit(1)
 
-    print options.delimiter.join([a for r, a in d.hook_tree(*args[1:])])
+    print options.delimiter.join([a for a in d.hook_tree(*args[1:])])
 
-commands['files'] = cmd_files
+commands['tree'] = cmd_tree
 
 def cmd_find(d, argv):
     if len(argv) <= 1 or argv[1].startswith('-'):
