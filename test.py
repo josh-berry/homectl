@@ -508,7 +508,10 @@ class InitUpgradeTest(HomectlTest):
     # Tests for the init and upgrade CLI commands, which live outside the
     # classes and provide some substantial functionality.
 
-    # XXX
+    # XXX I'm not really sure how to verify that a newly-created or upgraded
+    # homectl setup is "good", since that's highly dependent on what the
+    # individual user had in their old setup, or wants to put in their new
+    # setup.
     pass
 
 
@@ -516,7 +519,8 @@ class InitUpgradeTest(HomectlTest):
 class CLITest(HomectlTest):
     # Tests for other CLI commands which provide significant functionality.
 
-    # XXX
+    # XXX We don't really have any of these right now -- "path" and "find" would
+    # fall into this category, but they are both fairly trivial.
     pass
 
 
