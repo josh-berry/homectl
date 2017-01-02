@@ -2,40 +2,64 @@ How to Customize homectl
 ========================
 :toc:
 
-Introduction
-------------
+So you've installed homectl according to the README instructions; now what?  How
+do you apply it to your setup with a minimum of fuss?
 
-So you've installed homectl according to the README instructions, now what?  How
-do you apply it to your specific setup?  Moreover, how do you do it with a
-minimum of fuss?  This document attempts to answer that question.
+This document describes how to create your own packages for homectl, or
+otherwise extend it to your liking.  We'll start by defining some key concepts,
+then dig into how homectl packages are constructed, and finally discuss various
+extension points ("hooks" and "triggers") that are available for you to use in
+the construction of your own packages.
+
+
+
+Key Concepts
+------------
 
 Before we begin, you should know a few important things:
 
   . Everything you keep in homectl lives in a *package*, without exception.
-  . Typically, packages live in your *setup*.
+    Packages provide functionality (including the +hc+ command itself) for a
+    specific purpose.
 
-You use the +hc+ command only to *enable* and *disable* packages.  The packages
-themselves provide functionality (e.g. the +hc+ command itself), store your
-preferences and configuration files, or both.
+  . Typically, packages live in your homectl git repository, which is called
+    your *setup*.
+
+  . You use the +hc+ command to *enable* and *disable* packages, or *refresh*
+    your home directory after you make changes to a package.
+
+When you first `hc enable` a package, homectl symlinks the contents of the
+package into +~/.homectl+.  Files from all your enabled packages will be mixed
+together under this directory.  Then, files from your package's *overlay*
+(discussed later) will be linked directly into your home directory.
+
+When you `hc disable` a package, its files are unlinked from your home directory
+and from +~/.homectl+, thus undoing the effects of `hc enable`.
+
+As you modify your packages by adding/deleting/renaming files, you can use `hc
+refresh` to re-scan all your enabled packages and update your home directory and
++~/.homectl+.
+
+
 
 Splitting Your Stuff Up
-~~~~~~~~~~~~~~~~~~~~~~~
+-----------------------
 
-You probably already have a huge mass of scripts, configuration files, and so
-on.  When you split it into packages, think about splitting in the following
-ways:
+Before we talk about packages themselves, it's worth taking a moment to think
+about how you want to organize your stuff.  Consider splitting your stuff along
+these lines:
 
   * What it does (e.g. emacs vs. screen vs. ssh-agent vs. ...).
-  * What platform or environment it runs on (e.g. Darwin vs. Linux).
   * What hat you're wearing (e.g. work, personal, charity).
   * How often you use it (keep rarely-used things out of your environment).
 
-For instance, the author has the following packages (at the moment):
+Don't worry about platform compatibility at this stage (e.g. "this only works on Linux").  As we'll see later, homectl can automatically include/ignore content based on platform.
 
 .The Author's homectl Packages
 ================================================================================
 dev.hcpkg::
-    Scripts and customizations for software development.
+    Things related to software development.  This includes scripts, Emacs
+    packages and tweaks, etc.
 
 emacs-ux.hcpkg::
     Themes, usability customizations and other enhancements for Emacs.
@@ -72,111 +96,17 @@ zsh.hcpkg::
     Shell customizations (on top of oh-my-zsh).
 ================================================================================
 
-Loader Packages
----------------
-
-Some packages (called *loader packages*) exist only to provide a way for other
-packages to insert their functionality into your environment.  For example,
-homectl comes with the +loader-bash.hcpkg+ package.  +loader-bash.hcpkg+
-replaces your existing +.bashrc+ and +.bash_profile+ with scripts that do
-nothing but load +bash+ customizations from all the other enabled homectl
-packages.
-
-There is nothing intrinsically special or different about a loader package.
-Typically they have names starting with +loader-+, and several default loaders
-are provided with homectl for your convenience.  With few exceptions, loaders
-are generally responsible for both enforcing and following the conventions in
-this document.
-
-homectl includes several loader packages by default, to help get you started and
-to ease the task of breaking up your configuration into packages.  You should
-choose the ones that apply to you and enable them with:
-
---------------------------------------------------------------------------------
-$ hc enable homectl/loader-foo.hcpkg
---------------------------------------------------------------------------------
-
-+loader-bash.hcpkg+ and +loader-zsh.hcpkg+
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-The +loader-bash.hcpkg+ and +loader-zsh.hcpkg+ loaders replace your shell's
-profile and rc-files.  They are responsible for loading all the shell
-customizations (environment variables, functions, shell scripts, snazzy prompts,
-etc.) you have in all your enabled homectl packages.
-
-The simplest way to customize your shell is to create +shell-env/*.sh+ or
-+shell-rc/*.sh+ files in your homectl package, and place your code in there.
-You can also create a +bin/+ directory, to hold your stand-alone scripts, or
-even custom binaries.
-
-As the name implies, +shell-env/*+ files are generally expected to contain
-environment variable or other settings that could apply to both interactive and
-non-interactive shells.  They should not produce any output, nor expect any
-input.  They may be run even as part of shell scripts, so it's best to keep them
-as small as possible.
-
-+shell-rc/*+, on the other hand, contain things one might use while sitting at a
-shell prompt.  This would be a good place to change your prompt, set up an
-+ssh-agent+, or add shell aliases.
-
-If the loader sees a +bin/+ directory inside your package, that directory will
-be automatically added to your PATH.  Similarly, +lib/+, +lib64/+, etc. are
-added to your linker path.  This helps you to package 3rd-party programs for use
-in homectl with a minimum of fuss.
-
-+loader-emacs.hcpkg+
-~~~~~~~~~~~~~~~~~~~~
-
-The Emacs loader replaces your +~/.emacs+ file with a script that loads Emacs
-packages and customizations from your enabled homectl packages.  It also
-provides a convenient way to download and install +package.el+ packages from
-third-party sources.
-
-You can customize your Emacs by writing small a Emacs package (just a +foo.el+
-file with +(provide 'foo)+ at the end) and placing it in the +emacs-startup/+
-subdirectory of your homectl package.
-
-
-
-Creating Your Own Package
--------------------------
-
-Now that you've enabled all the loader packages you'll need, you should create a
-couple homectl packages to hold your customizations.  To make a homectl package,
-all you need to do is:
-
---------------------------------------------------------------------------------
-$ mkdir my-stuff.hcpkg
---------------------------------------------------------------------------------
-
-You can immediately enable it, like so:
-
---------------------------------------------------------------------------------
-$ hc enable my-stuff.hcpkg
-update /home/me/.homectl/enabled-pkgs
---------------------------------------------------------------------------------
-
-homectl records the package as enabled, but nothing else happens because the
-package has nothing in it.  You'll need to place some specially-named files and
-directories inside your package to make it do something useful.
-
-Try creating a +bin/+ directory inside your package, and placing a script there.
-When you create, move, or delete files inside your package, you'll have to
-inform homectl of the change:
-
---------------------------------------------------------------------------------
-$ hc refresh       # or just "hc ref" for short
-ln -s ../../../home-setup/my-stuff.hcpkg/bin/script /home/me/.homectl/common/bin/script
---------------------------------------------------------------------------------
-
-Notice that homectl maintains a set of symlinks to the files in each enabled
-package in +~/.homectl+.  The +hc refresh+ command causes homectl to re-scan
-these packages, and update the symlinks accordingly.
-
 
 
 Anatomy of a Package
 --------------------
+
+homectl packages are just directories with a +.hcpkg+ extension.  To create a
+new, empty package, all you need to do is:
+
+--------------------------------------------------------------------------------
+$ mkdir my-stuff.hcpkg
+--------------------------------------------------------------------------------
 
 The contents of a homectl package are broken down by *system* and by *hook*.
 
@@ -220,9 +150,11 @@ example.hcpkg/
       libfoo.so
     ...
 
-  [A-Z].*/        <--- this is what a system name looks like
-    [a-z].*/      <--- this is what a hook name looks like
+  [A-Z]*/        <--- this is what a system name looks like
+    [a-z]*/      <--- this is what a hook name looks like
       ...
+
+  *.trigger      <--- triggers will be discussed later
 --------------------------------------------------------------------------------
 ================================================================================
 
@@ -230,7 +162,7 @@ Linking into +~/.homectl+
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
 When a package is enabled, homectl symlinks the contents of each package into
-+\~/.homectl+, following the pattern: +\~/.homectl/$SYSTEM/$HOOK+.  From the
++~/.homectl+, following the pattern: +~/.homectl/$SYSTEM/$HOOK+.  From the
 example above, if you were to create a script +example.hcpkg/bin/my-script+,
 homectl would create the following link in +~/.homectl+:
 
@@ -249,8 +181,12 @@ see a symlink like so:
 ~/.homectl/Linux/bin/my-binary -> path/to/example.hcpkg/Linux/bin/my-binary
 --------------------------------------------------------------------------------
 
-Symlinks created by homectl are always relative.  This is done to accommodate a
-user whose home directory may be in different locations on different systems.
+Symlinks created by homectl use relative paths when they are within your home
+directory, and absolute paths otherwise.  This is done to accommodate a user
+whose home directory may be in different locations on different systems.
+
+Subdirectories Inside Hooks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 You may also place files in subdirectories inside a hook.  Those files will be
 individually linked into +~/.homectl+.  This allows you to build entire trees
@@ -313,23 +249,65 @@ ln -s ../home-setup/unison.hcpkg/overlay/.unison/default.prf /home/me/.unison/de
 --------------------------------------------------------------------------------
 
 homectl will create the directory if it doesn't already exist, and place a
-symlink in that directory.  One interesting thing to note is that symlinks
-created by homectl are always relative.  Here, we can see that homectl has
-adjusted the symlink's target path to account for the fact that it lives in a
-subdirectory.
+symlink in that directory.  We can also see that homectl has adjusted the
+symlink's target path to account for the fact that it lives in a subdirectory.
 ================================================================================
 
+Exercise: Creating a Package for tmux
+-------------------------------------
+
+Do you have a configuration file (or set of files) you'd like to keep in
+homectl?  Now is a good time to try creating your own package.  Let's take
++tmux+ as an example; it keeps a configuration file in +~/.tmux.conf+.
+
+. Create a package for your tmux configuration:
+
+      $ cd my-homectl-setup
+      $ mkdir tmux.hcpkg
+
+. Enable your new tmux package:
+
+      $ hc enable tmux.hcpkg     # You can also shorten this to just "hc en".
+
+. Create an overlay directory to hold your +.tmux.conf+:
+
+    $ mkdir tmux.hcpkg/overlay
+
+. Move your +.tmux.conf+ into your homectl package:
+
+      $ mv ~/.tmux.conf tmux.hcpkg/overlay/
+      $ git add tmux.hcpkg/overlay/.tmux.conf
+      $ git commit -m "Add my tmux.conf"
+
+. Now, refresh your home directory so that homectl will re-scan your enabled
+  packages and find your +.tmux.conf+:
+
+      $ hc refresh    # or "hc ref", for short
+          $ update /home/me/.homectl/enabled-pkgs
+          $ ln -s ../../../my-homectl-setup/tmux.hcpkg/overlay/.tmux.conf
+                  /home/me/.homectl/common/overlay/.tmux.conf
+          $ ln -s .homectl/common/overlay/.tmux.conf /home/me/.tmux.conf
+
+. Notice that homectl created two symlinks: one from +~/.homectl+ to your
+  +.tmux.conf+, and one from +~/.tmux.conf+ to +~/.homectl+.
 
 
-Finding Package Contents
-------------------------
 
-Finding Available Hooks
-~~~~~~~~~~~~~~~~~~~~~~~
+Finding Things in Enabled Packages
+----------------------------------
 
-You can find the available hooks on your system using the +hc path+ command.
-For example, all the relevant +bin+ directories for this system can be found
-with:
+Often, you will want to write code that searches through all enabled packages looking for things.  The +hc path+ and +hc tree+ commands help you do this by finding directories and/or files which pertain to specific hooks on the current system.
+
++hc path+: Finding Hook Directories
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You can use the +hc path+ command to generate a list of directories to search
+for a particular hook.  +hc path+ will always return hook directories in the
++common+ system, as well as hooks in other available systems (as outlined in the
+"Systems" reference later in this document).
+
+For example, if you want to find all the available +bin+
+hooks on the current system, you might do this:
 
 --------------------------------------------------------------------------------
 $ hc path bin
@@ -356,22 +334,89 @@ $ hc path bin PATH
 /home/me/.homectl/common/bin:/home/me/.homectl/Linux/bin:/usr/bin:/bin
 --------------------------------------------------------------------------------
 
-Finding Specific Files
-~~~~~~~~~~~~~~~~~~~~~~
++hc tree+: Finding Specific Files
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-You can use +hc find+ to look for specific files inside packages.  Right now
-this is very basic -- you have to search based on the path of the file within a
-package.  We recommend you prefer +hc path+ over +hc find+ for now, since +hc
-find+ exists primarily to ease backward compatibility with homectl 0.2 and
-older.
+You can use +hc tree+ to look for specific files inside hooks.  For example, if
+you want to find all +*.el+ files in the +emacs-startup+ hook, you might do
+this:
+
+--------------------------------------------------------------------------------
+$ hc tree emacs-startup '*.el'
+/home/me/.homectl/common/emacs-startup/commit-message-mode.el
+ /home/me/.homectl/common/emacs-startup/graphviz-dot-mode.el ...
+--------------------------------------------------------------------------------
+
+Formatting +hc path+ and +hc tree+ Output
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both +hc path+ and +hc tree+ take a number of different command-line options
+which can be used to format their output in a more favorable way for processing
+by other tools.  See each command's +--help+ for further details.
 
 
 
-System Directories
+Reference: Loader Packages
+--------------------------
+
+Some packages (called *loader packages*) exist only to provide a way for other
+packages to insert their functionality into your environment.  For example,
+homectl comes with the +loader-bash.hcpkg+ package.  +loader-bash.hcpkg+
+replaces your existing +.bashrc+ and +.bash_profile+ with scripts that do
+nothing but load +bash+ customizations from all your enabled homectl packages.
+
+homectl includes several loader packages by default, to help get you started and
+to ease the task of breaking up your configuration into packages.  You should
+choose the ones that apply to you and enable them with:
+
+--------------------------------------------------------------------------------
+$ hc enable homectl/loader-foo.hcpkg
+--------------------------------------------------------------------------------
+
++loader-bash.hcpkg+ and +loader-zsh.hcpkg+
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+These packages replace your shell's standard profile and rc-files with stubs
+that search through your enabled homectl packages and load any shell
+customizations they find (environment variables, functions, shell scripts,
+snazzy prompts, etc.).
+
+They look for shell customizations in the +shell-env+ and +shell-rc+ hooks, and load anything they find there.  +loader-bash.hcpkg+ will look for files named +*.sh+ or +*.bash+, while +loader-zsh.hcpkg+ will look for files named +*.sh+ or +*.zsh*.
+
+As the name implies, +shell-env/*+ files are generally expected to contain
+environment variable or other settings that could apply to both interactive and
+non-interactive shells.  They should not produce any output, nor expect any
+input.  They may be run even as part of shell scripts, so it's best to keep them
+as small as possible.
+
++shell-rc/*+, on the other hand, contain things one might use while sitting at a
+shell prompt.  This would be a good place to change your prompt, set up an
++ssh-agent+, or add shell aliases.
+
+If the loader sees a +bin/+ hook inside your package, that directory will
+be automatically added to your PATH.  Similarly, +lib/+, +lib64/+, etc. are
+added to your linker path.  This helps you to package 3rd-party programs for use
+in homectl with a minimum of fuss.
+
++loader-emacs.hcpkg+
+~~~~~~~~~~~~~~~~~~~~
+
+The Emacs loader replaces your +~/.emacs+ file with a script that loads Emacs
+packages and customizations from your enabled homectl packages.  It also
+provides a convenient way to download and install +package.el+ packages from
+third-party sources.
+
+You can customize your Emacs by writing small a Emacs package (just a +foo.el+
+file with +(provide 'foo)+ at the end) and placing it in the +emacs-startup/+
+hook.
+
+
+
+Reference: Systems
 ------------------
 
-On the current machine, homectl looks for hooks in the following system
-directories:
++hc path+, +hc files+ and related commands will search for hooks in the
+following "system" subdirectories of +~/.homectl+:
 
   * +common+
   * +$system+
@@ -385,15 +430,24 @@ directories:
 
 
 
-Well-Known Hooks
+Reference: Hooks
 ----------------
 
 The loaders that come with homectl support the following hooks.  Any loaders you
 write should follow these conventions as well.
 
++overlay/+::
+    Files in +overlay+ are symlinked directly into your home directory.
+    _[+common+ system only]_
+
 +bin/+::
     Added to +$PATH+.  Contains scripts or binaries that belong to this package.
 
++lib/+::
++lib64/+::
++lib32/+::
+    Added to +$LD_LIBRARY_PATH+, +$DYLD_LIBRARY_PATH+ or the equivalent on your
+    platform.  Contains libraries used by binaries in this package.
 
 +emacs/+::
     Added to Emacs's +load-path+.  You can place Emacs packages here and they
@@ -403,65 +457,36 @@ write should follow these conventions as well.
     Added to Emacs's +load-path+.  You can place Emacs packages here and they
     will be automatically loaded with +(require)+ at startup.
 
-+lib/+::
-+lib64/+::
-+lib32/+::
-    Added to +$LD_LIBRARY_PATH+, +$DYLD_LIBRARY_PATH+ or the equivalent on your
-    platform.  Contains libraries used by binaries in this package.
++shell-env/+::
+    Defines shell environment variables and other settings which apply to both
+    interactive and non-interactive shells.  Files in this hook should have an
+    extension which matches the shell (e.g. +\*.sh+, +*.bash+, etc.)
 
-+overlay/+::
-    Files in +overlay+ are symlinked directly into your home
-    directory.  _[+common+ system only]_
++shell-rc/+::
+    Defines shell aliases, functions, prompts, and other settings which apply to
+    interactive shells.  Files in this hook should have an extension which
+    matches the shell (e.g. +\*.sh+, +*.bash+, etc)
 
 
 
-Package File Reference
-----------------------
+Reference: Triggers
+-------------------
 
-*Note: Bare files in packages are deprecated, and exist mainly to provide
-backward compatibility with homectl <= 0.2.  Use them only if there is no hook
-that does what you want.*
+If simple symlinking isn't enough to deploy a package, homectl provides a way to
+run programs when packages are enabled (actually, refreshed) or disabled.
+Triggers are always placed in the top-level package directory; they are
+currently not system-specific.
 
-Files with certain special names may be placed directly into the root of a
-homectl package, and they will be picked up by the various loaders.  Note that
-these files are not system-specific; that is, they may not be placed into a
-system directory and they are always used, no matter what system you're
-currently on.
++refresh.trigger+::
+    When a package is enabled, or when an already-enabled package is updated via
+    +hc refresh+, homectl will look in the top level of each package directory
+    for a file called +refresh.trigger+.  If this file exists and is executable,
+    homectl will run it.
 
-Used by Shell Loaders
-~~~~~~~~~~~~~~~~~~~~~
++disable.trigger+::
+    Similarly, when a package is disabled, homectl will search for and run a
+    +disable.trigger+ executable file.
 
-For hooks, when multiple file extensions are listed, the files are sourced as
-follows:
-
-  . Files with no extension are sourced by every shell (for those rare cases
-    where a script might work in both csh and sh).
-  . Files with a +.sh+ extension are sourced by both the bash and zsh loaders.
-  . Files with a shell-specific extension are sourced only by that shell.
-
-In addition to the directories in the previous section, shell loaders recognize
-the following hooks:
-
-+env+::
-+env.sh+::
-+env.bash+::
-+env.zsh+::
-    Sourced by the shell to set environment variables, in both interactive and
-    non-interactive environments.  By convention, these should not produce any
-    output (normally), nor should they expect any input from the user.  They
-    should, however, run very fast.
-
-+shell+::
-+shell.sh+::
-+shell.bash+::
-+shell.zsh+::
-    Sourced by the shell in interactive environments, to add custom functions,
-    change the shell prompt, etc.  These should still run fast, but they are
-    allowed to produce output or expect input.
-
-Used by +loader-emacs.hcpkg+
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-+emacs.el+::
-    +emacs.el+ files in each package are loaded directly into Emacs, in random
-    order, using +(load-file)+.
+At present, these triggers are run in a non-interactive context, so they should
+not expect to have access to user input.  They are called with no parameters and
+with no extra environment variables.
