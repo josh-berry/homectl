@@ -8,25 +8,12 @@ link:customization.asciidoc[].
 
 
 
-Branches
---------
+Branches and Version Numbers
+----------------------------
 
-We use http://nvie.com/posts/a-successful-git-branching-model/[git-flow] for
-handling branches and releases.  This means:
-
-  * +master+ holds the latest stable release.
-  * +develop+ holds the current, possibly-broken development version.
-  * +feature/*+ branches are for new-feature development (and always get merged
-    into +develop+)
-
-
-
-Version Numbers
----------------
-
-For the most part, homectl's version numbers don't matter -- most people can use
-the +master+ branch and be happy.  Different versions exist only to mark
-particularly stable points during development.
+For the most part, homectl's version numbers don't matter -- most people can
+(and will) use the +master+ branch and be happy.  Different versions exist only
+to mark particularly stable points during development.
 
 Versions are named using the standard <major>.<minor>.<revision> scheme:
 
@@ -36,7 +23,25 @@ Versions are named using the standard <major>.<minor>.<revision> scheme:
   * Revisions contain bugfixes only.
 
 We don't do alpha/beta releases, because if people want to try out the latest
-thing, they can just use +develop+.
+thing, they can just use +master+.  We expect most people to do this.
+
+
+
+Code Quality
+------------
+
+Since people will often pull directly from +master+, +master+ must always be in
+a releasable state.  This means anything going into +master+ must:
+
+* Work as intended.
+
+* Be documented (both in source code comments, and in the user-facing
+  documentation).
+
+* Have major new changes and/or functionality covered by unit tests, which are
+  runnable through +test.py+.
+
+In short: if you can't show a test proving it works, it doesn't work.
 
 
 
@@ -45,7 +50,7 @@ Design Principles
 
 .Don't Repeat Yourself.
 
-Ever.
+Enough said.
 
 .Don't assume anything about the environment.
 
@@ -55,16 +60,21 @@ notice.  Your code should adapt to these changes transparently.
 
 .Don't mess with the user's stuff.
 
-Don't put anything in a user's Git unless they explicitly tell you to (for
-example, +homectl init+).  If you *must* do this, let the user add and commit it
-themselves (for example, +homectl enable+).
+Don't put anything in a user's Git, or touch any of their actual files, unless
+they explicitly tell you to (for example, +homectl init+).  If you *must* do
+this, let the user add and commit it themselves (for example, +homectl enable+).
 
 .Keep homectl small.
 
 The only packages that belong in the +homectl+ distribution are homectl itself,
 and loader packages for the various shells, Emacs, Vim, etc.  If you are not
 providing a new, standard way to use homectl, put it somewhere else and link to
-it from the wiki.
+it from the wiki.  Since people will clone homectl directly, it's not great if
+they have to waste time and bandwidth getting a bunch of stuff they don't need.
+
+That said, if something is very commonly used, and reasonably self-contained, we
+can consider placing it in an +extras/+ directory or similar.  But I would
+expect this to be the exception, not the rule.
 
 
 
