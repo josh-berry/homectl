@@ -37,10 +37,10 @@ homectl-run-hooks() {
     local hook="$1"
     shift
 
-    for f in $(hc find shell-$hook '*.sh'); do
+    for f in $(hc tree shell-$hook '*.sh'); do
         source "$f"
     done
-    for f in $(hc find shell-$hook '*.zsh'); do
+    for f in $(hc tree shell-$hook '*.bash'); do
         source "$f"
     done
 }
