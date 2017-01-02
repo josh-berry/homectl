@@ -3,6 +3,81 @@ News for homectl
 
 :toc:
 
+Version 0.3.0
+-------------
+
+Not Yet Released
+
+.User Actions Required to Upgrade
+
+* The `homectl` command has been completely rewritten in Python, and the command
+  name has been shortened to `hc`.  You should switch to using the new `hc`
+  command instead.  The old `homectl` shell script still exists to aid in
+  upgrading, but it will be removed in homectl 0.4.
+
+* The `~/.homectl` directory is now a Homebrew-style tree of symlinks to
+  individual files in enabled packages.  Enabled packages are now tracked in an
+  `enabled-pkgs` file, rather than as a directory of symlinks.  To upgrade your
+  existing deployment and setup, run:
+
+------------------------------------------------------------------------------
+$ homectl refresh
+$ rehash                       # if needed by your shell
+
+$ hc upgrade
+$ hc init ~/your-home-setup    # this is not destructive, don't worry :)
+------------------------------------------------------------------------------
+
+.New Features
+
+* The new Python implementation is much faster.
+
+* Homectl now understands different machine and OS types, via the notion of
+  *systems*.  See link:doc/customization.asciidoc[] for more details.
+
+* `hc upgrade` performs most of the manual labor required to convert a homectl
+  0.2 setup and deployment to a homectl 0.3 setup and deployment.
+
+* `hc path` discovers where homectl files live, and computes updated
+  environment variables such as `$PATH`.
+
+* `hc tree` searches for files and directories within hook dirs in your
+  packages, similar to how `find $hook_dirs -path ...` works.
+
+* `loader-emacs.hcpkg` loads Emacs packages directly from the new
+  `emacs-startup` hook.  It uses `(require)` to ensure package dependencies are
+  respected.
+
+* More documentation, especially on how to create your own packages.
+
+.Deprecations
+
+* As mentioned above, `homectl` has been renamed to `hc`.  The original
+  `homectl` command, and its companion `homectl-resolve-path` tool, will be
+  removed in homectl 0.4.
+
+* `loader-emacs.hcpkg`: The previous method of running `emacs.el` files during
+  startup is now deprecated.  Place startup packages in the `emacs-startup`
+  hookdir instead.  The old behavior will be removed in homectl 0.4.
+
+* `homectl find` (or `hc find`, as it's now called) has been deprecated in favor
+  of `hc tree`.  `hc find` will be removed in homectl 0.4.
+
+* `loader-bash` and `loader-zsh`: The previous mechanism of sourcing `shell.*`
+  and `env.*` files during shell startup is deprecated and will be removed in
+  homectl 0.4.  Instead, place your `*.sh`, `*.bash`, or `*.zsh` files in the `shell-env` and `shell-rc` hook directories, respectively.
+
+.Bugs Fixed
+
+* `loader-emacs.hcpkg` now unconditionally refreshes the `package.el` package
+  list if it needs to install a missing package.  This ensures the package list
+  is always available.
+
+.Bugs Introduced
+
+* Probably a few, since this is a rewrite.  Hopefully the new unit tests caught
+  most of them. :)
+
 Version 0.2.0
 -------------
 

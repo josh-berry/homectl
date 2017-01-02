@@ -5,10 +5,12 @@
 ;;; Customization
 ;;;
 
-(defvar homectl-dir (concat (getenv "HOME") "/.homectl")
+(defconst homectl-dir (concat (getenv "HOME") "/.homectl")
   "The location of the homectl directory.  You should not change
   this unless you're a homectl developer and you change it in all
   the other places where it's hard-coded. :)")
+
+(defconst homectl-bin (concat homectl-dir "/common/bin/hc"))
 
 (defgroup homectl nil "Homectl configuration options" :tag "Homectl")
 
@@ -31,7 +33,7 @@ about this behvior on Linux."
 
 (defmacro homectl-foreach-enabled (path-var &rest body)
   "Loop through each enabled homectl package, placing its path in /path-var/."
-  `(dolist (,path-var (directory-files homectl-dir t nil t))
+  `(dolist (,path-var (process-lines homectl-bin "list"))
      (when (null (string-match-p "^\\." (file-name-nondirectory ,path-var)))
        ,@body)))
 
@@ -58,8 +60,7 @@ repository if it is not already available on the system."
         (error (concat "[homectl] Couldn't install " (symbol-name pkg-symbol)
                        " from " repo-url)))
 
-      (when (not (assoc repo-name package-archives))
-        (package-refresh-contents))
+      (package-refresh-contents)
       (package-install pkg-symbol)
       (require pkg-symbol)))))
 
@@ -84,54 +85,20 @@ repository if it is not already available on the system."
 ;;; Startup-related utility functions
 ;;;
 
-(defun homectl-env-add-to-path (var path)
-  "Add a path to a :-separated environment variable."
-  (when (file-directory-p path)
-    (let ((path-list (split-string (getenv var) path-separator t)))
-      (when (not (member path path-list))
-        (message (concat "[homectl] Updating " var ": " path))
-        (setenv var (concat path path-separator (getenv var)))))))
-
 (defun homectl-enable-pkg (pkg-path)
   "Enable a single homectl package, located at /pkg-path/."
-  (message (concat "[homectl] Enabling package: " pkg-path))
 
-  (let ((start-file (concat pkg-path "/" "emacs.el"))
-        (lp-dir (concat pkg-path "/" "emacs"))
-        (bin-dir (concat pkg-path "/" "bin")))
-
-    ; Emacs dir
-    (when (file-directory-p lp-dir)
-      (add-to-list 'load-path lp-dir)
-      (when Info-directory-list
-          (add-to-list 'Info-directory-list lp-dir))
-      (add-to-list 'Info-default-directory-list lp-dir))
-
-    ; bin/
-    (when (file-directory-p bin-dir)
-      (add-to-list 'exec-path bin-dir)
-      (homectl-env-add-to-path "PATH" bin-dir))
-
-    ; lib*/
-    (cond
-     ((string= system-type "darwin")
-      (let ((lib-dir (concat pkg-path "/" "lib"))
-            (fw-dir (concat pkg-path "/" "Frameworks")))
-        (homectl-env-add-to-path "DYLD_LIBRARY_PATH" lib-dir)
-        (homectl-env-add-to-path "DYLD_FRAMEWORK_PATH" fw-dir)))
-     (t
-      (dolist (l '("lib" "lib32" "lib64"))
-        (let ((lib-dir (concat pkg-path "/" l)))
-          (homectl-env-add-to-path "LD_LIBRARY_PATH" lib-dir)))))
-
-    (delete-dups exec-path)
-    (delete-dups load-path)
-    (delete-dups Info-directory-list)
-    (delete-dups Info-default-directory-list)
+  (let ((start-file (concat pkg-path "/" "emacs.el")))
 
     ; Load the package's startup file
     (when (file-exists-p start-file)
       (load-file start-file))))
+
+(defun homectl-update-env (var hook)
+  (let
+      ((new-path (process-lines homectl-bin "path" "-n" hook var)))
+        (setenv var (mapconcat #'identity new-path path-separator))
+        (message (concat "[homectl] Updating " var ": " (getenv var)))))
 
 
 
@@ -171,6 +138,32 @@ environment."
 
   ; Find all the enabled homectl packages and load them/add them to Emacs's
   ; paths.
+  (homectl-update-env "PATH" "bin")
+  (cond
+   ((string= system-type "darwin")
+    (homectl-update-env "DYLD_FRAMEWORK_PATH" "Frameworks")
+    (homectl-update-env "DYLD_LIBRARY_PATH" "lib"))
+   ((string= system-type "linux")
+    (homectl-update-env "LD_LIBRARY_PATH" "lib")
+    (homectl-update-env "LD_LIBRARY_PATH" "lib32")
+    (homectl-update-env "LD_LIBRARY_PATH" "lib64")))
+
+  ; Update emacs internal paths from environment variables
+  (setq exec-path (append (split-string (getenv "PATH") ":" t) exec-path))
+  (setq load-path (append (process-lines homectl-bin "path" "emacs")
+                          load-path))
+  (setq load-path (append (process-lines homectl-bin "path" "emacs-startup")
+                          load-path))
+
+  ; Load all emacs startup packages from homectl
+  (dolist (pdir (process-lines homectl-bin "path" "emacs-startup"))
+    (dolist (f (directory-files pdir nil "^[^.].*\\.el"))
+      (let ((pkg (replace-regexp-in-string "\.el$" "" f)))
+        (message "[homectl] Loading %s" pkg)
+        (require (intern pkg)))))
+
+  ; Load old-style homectl hooks
+  (message "[homectl] Loading standard init files...")
   (homectl-foreach-enabled pkg
     (homectl-enable-pkg pkg)))
 

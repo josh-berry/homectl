@@ -12,17 +12,17 @@ environments.
 
 .Features
 
+  * Split your config files, scripts, etc. into "packages":
+    ** Post the common stuff to the Internet
+    ** Keep a private package for your work-related config and scripts.
+    ** Make another package for your open-source development or hobbies.
+    ** Only enable what you need, where you need it.
+
   * It automatically conforms to your environment:
     ** Different shells (bash, zsh).
     ** Different platforms (Linux, Darwin, probably others).
     ** Different values of +$HOME+ (no absolute paths, one hard-coded path:
        +$HOME/.homectl+).
-
-  * Split your configuration into "packages":
-    ** Post the common stuff to the Internet, but...
-    ** Keep a private package for your work-related config and scripts.
-    ** Make another package for your open-source development or hobbies.
-    ** Only enable what you need, where you need it.
 
   * Keep it all version-controlled inside git.
     ** A single +git clone+ copies your whole environment anywhere you like.
@@ -46,11 +46,6 @@ Quick-Start
 Installation
 ~~~~~~~~~~~~
 
-NOTE: Before you deploy, you should move your existing shell rc files out of the
-way.  (+.bashrc+, +.zshrc+, etc.)  Otherwise homectl won't be able to install
-its own "loader" files.  [This will eventually be covered by a migration
-script.]
-
 -----------------------------------
 # Get a copy of the latest stable homectl.
 $ git clone git://github.com/josh-berry/homectl.git
@@ -58,19 +53,23 @@ $ git clone git://github.com/josh-berry/homectl.git
 # Create your own homectl setup.
 $ ./homectl/setup.sh ~/homectl-setup
 
+# Move your existing .rc files into homectl
+mv .bashrc bashrc.old
+mv .zshenv zshenv.old
+# etc...
+
 # Link your setup into your home directory.
 $ ~/homectl-setup/deploy.sh
 -----------------------------------
 
 .Next Steps:
 
-  * Restart your shell, and use the +homectl+ command to enable and disable
-    packages.
-
   * Read link:doc/customization.asciidoc[] to learn how to create your own
     homectl packages.
 
   * Create packages to hold your personal configuration.
+
+  * Restart your shell, and use the +hc+ command to enable and disable packages.
 
 Uninstallation
 ~~~~~~~~~~~~~~
@@ -89,10 +88,6 @@ We suggest you read these in order.
 
 link:doc/customization.asciidoc[]::
     The anatomy of a homectl package, and how to create your own.
-
-Not yet written::
-    How homectl itself is laid out (e.g. what the files, directories and
-    included packages are).
 
 link:doc/hacking.asciidoc[]::
     A quick guide to hacking on homectl itself.  Covers high-level design
