@@ -6,7 +6,7 @@ News for homectl
 Version 0.3.0
 -------------
 
-Not Yet Released
+Released on: 01-Jan-2017
 
 .User Actions Required to Upgrade
 
