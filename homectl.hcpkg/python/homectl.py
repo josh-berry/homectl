@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+#
+# WARNING: This code is carefully written to work in both Python 2 AND Python 3,
+# since on some systems, "python" means the former, while on others, it means
+# the latter.  (Grumble, grumble, backward compatibility, etc.)  You may see
+# some rather strange idioms here for that reason.
+#
+
 import os
 import sys
 import re
@@ -28,6 +35,13 @@ DEFAULT_HOMECTL_PKGS = ['homectl.hcpkg',
 ENABLED_LIST = 'enabled-pkgs'
 
 # Util functions
+
+if sys.version_info.major == 2:
+    def iteritems(coll): return coll.iteritems()
+elif sys.version_info.major == 3:
+    def iteritems(coll): return coll.items()
+else:
+    raise RuntimeError("Don't know what version of Python this is!")
 
 def mkdirp(path):
     if path == '': return
@@ -439,7 +453,7 @@ class Deployment(object):
             try:
                 self.sys.run(tpath, *args)
                 return 0
-            except subprocess.CalledProcessError, e:
+            except subprocess.CalledProcessError as e:
                 return e.returncode
 
     def refresh(self):
@@ -492,7 +506,7 @@ class Deployment(object):
                 self.sys.rm_link(path)
 
         # Update all the links in $cfgdir.
-        for rel, text in link_map.iteritems():
+        for rel, text in iteritems(link_map):
             # Create in $cfgdir
             lnk = os.path.join(self.cfgdir, rel)
             self.sys.update_link(text, lnk)
@@ -535,7 +549,7 @@ class Deployment(object):
 
 class ConsoleSystem(System):
     def log(self, msg):
-        print msg.rstrip()
+        print(msg.rstrip())
 
 
 
@@ -546,7 +560,7 @@ class ConsoleSystem(System):
 commands = {}
 
 def cmd_help(d, args):
-    print """Usage: %(cmd)s CMD OPTIONS ...
+    print("""Usage: %(cmd)s CMD OPTIONS ...
 
 For help on individual commands, run "cmd --help".
 
@@ -562,13 +576,13 @@ For help on individual commands, run "cmd --help".
 
     path
     find
-""" % {'cmd': CMD_NAME}
+""" % {'cmd': CMD_NAME})
 
 commands['help'] = cmd_help
 
 def cmd_init(d, argv):
     if len(argv) < 2 or argv[1].startswith('-'):
-        print """Usage: %s init PATH-TO-YOUR-GIT-REPO [URL]
+        print("""Usage: %s init PATH-TO-YOUR-GIT-REPO [URL]
 
 Create a new homectl setup, or upgrade an existing setup.
 
@@ -584,7 +598,7 @@ You can optionally specify a URL to a homectl Git repo, and 'init'
 will use that repo instead of the default.  This is only useful if
 you work on homectl itself.  Note that if you specify a local
 filesystem path for the URL, it must be an absolute path.
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     new_setup = False
@@ -725,12 +739,12 @@ commands['init'] = cmd_init
 
 def cmd_upgrade(d, argv):
     if len(argv) > 1:
-        print """Usage: %s upgrade
+        print("""Usage: %s upgrade
 
 Upgrades your ~/.homectl to use the latest version of homectl.
 This command does not upgrade your homectl setup (git repository);
 to do that, you must run the init command separately.
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     enabled_path = os.path.realpath(d.cfgdir)
@@ -752,12 +766,12 @@ commands['upgrade'] = cmd_upgrade
 
 def cmd_refresh(d, argv):
     if len(argv) > 1:
-        print """Usage: %s refresh
+        print("""Usage: %s refresh
 
 Scans for any changes in your homectl packages, and ensures those
 changes are reflected in your home directory (e.g. creates/removes
 symlinks so that scripts and binaries appear in your path).
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     d.refresh()
@@ -766,14 +780,14 @@ commands['ref'] = cmd_refresh
 
 def cmd_uninstall(d, argv):
     if len(argv) > 1:
-        print """Usage: %s uninstall
+        print("""Usage: %s uninstall
 
 Completely remove homectl from your home directory.  Leaves your
 homectl setup (git repository) intact.
 
 If you accidentally uninstall, you can run your deploy.sh script
 again to get your homectl deployment back.
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     d.uninstall()
@@ -781,20 +795,20 @@ commands['uninstall'] = cmd_uninstall
 
 def cmd_list(d, argv):
     if len(argv) > 1:
-        print """Usage: %s list
+        print("""Usage: %s list
 
 List all enabled packages.
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     for p in d.packages:
-        print p.path
+        print(p.path)
 commands['list'] = cmd_list
 commands['ls'] = cmd_list
 
 def cmd_enable(d, argv):
     if len(argv) <= 1 or argv[1].startswith('-'):
-        print """Usage: %s enable PKG [PKG ...]
+        print("""Usage: %s enable PKG [PKG ...]
 
 Enables one or more packages, linking their contents into
 your home directory.
@@ -802,7 +816,7 @@ your home directory.
 If the package contains new shell aliases, changes to $PATH,
 etc., you will have to restart any affected programs to pick
 up the new features.
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     for path in argv[1:]:
@@ -814,14 +828,14 @@ commands['en'] = cmd_enable
 
 def cmd_disable(d, argv):
     if len(argv) <= 1 or argv[1].startswith('-'):
-        print """Usage: %s disable PKG [PKG ...]
+        print("""Usage: %s disable PKG [PKG ...]
 
 Undoes the effect of the 'enable' command.  Unlinks the enabled
 package from your home directory, so it won't be loaded by default.
 
 You may have to restart programs this package uses after it is
 disabled.
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     for path in argv[1:]:
@@ -861,7 +875,7 @@ include homectl paths (for example, PATH). """ % CMD_NAME)
             if p not in dirs:
                 dirs.append(p)
 
-    print options.delimiter.join(dirs)
+    print(options.delimiter.join(dirs))
 
 commands['path'] = cmd_path
 
@@ -885,23 +899,23 @@ each returned path with "find -path GLOB". """ % CMD_NAME)
         parser.print_usage()
         sys.exit(1)
 
-    print options.delimiter.join([a for a in d.hook_tree(*args[1:])])
+    print(options.delimiter.join([a for a in d.hook_tree(*args[1:])]))
 
 commands['tree'] = cmd_tree
 
 def cmd_find(d, argv):
     if len(argv) <= 1 or argv[1].startswith('-'):
-        print """Usage: %s find FILE
+        print("""Usage: %s find FILE
 
 This command is deprecated.  Use "path" or "files" instead.
-""" % CMD_NAME
+""" % CMD_NAME)
         return
 
     # XXX This is for compatibility with homectl <= 0.2
     for p in d.packages:
         for f in os.listdir(p.path):
             if f == argv[1]:
-                print os.path.join(p.path, f)
+                print(os.path.join(p.path, f))
 commands['find'] = cmd_find
 
 def main(d, argv):
