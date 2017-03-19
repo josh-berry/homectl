@@ -12,7 +12,7 @@ import sys
 import re
 import subprocess
 import collections
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 import fnmatch
 
 # If we are imported as a module, this is our API.
@@ -847,35 +847,77 @@ commands['dis'] = cmd_disable
 
 def cmd_path(d, argv):
     parser = OptionParser(
-        usage="""Usage: %s path [options] HOOK [ENV_VAR]
+        usage="""Usage: %s path [options] [HOOK] [ENV_VAR]
 
-The 'path' command generates a list of homectl directories for
-the specified HOOK.  For example, if "bin" is used, path will
-return a list of every directory in which "bin" files may be
-found for this system.
+The 'path' command generates a list of directories (or other items), combining
+several sources as described in the options.  Once the list is generated, 'path'
+will remove duplicates from the list, keeping the item that appears earliest.
 
-If ENV_VAR is specified, path will merge the list of directories
-with the specified environment variable, removing duplicates.
-This is useful when you want to update an existing variable to
-include homectl paths (for example, PATH). """ % CMD_NAME)
-    parser.add_option('-d', '--delimiter', dest='delimiter', default=':',
-                      help='Separate directories with DELIMITER (default: %default)')
-    parser.add_option('-n', '--newlines', dest='delimiter',
-                      action='store_const', const="\n",
-                      help='Separate directories with newlines.')
+The HOOK and ENV_VAR parameters are deprecated; they are the same as the -H and
+-E options, respectively.""" % CMD_NAME)
+
+    delim = OptionGroup(parser, "Delimiters")
+    delim.add_option('-d', '--delimiter', dest='delimiter', default=':',
+                     help="Separate items in the list with DELIMITER "
+                        + "(default: '%default')")
+    delim.add_option('-n', '--newlines', dest='delimiter',
+                     action='store_const', const="\n",
+                     help="Separate items in the list with newlines "
+                        + "(conflicts with -d).")
+    delim.add_option('-i', '--in-delimiter', dest='in_delimiter', default=':',
+                     help="When parsing environment variables, split them "
+                        + "using DELIMITER (default: '%default')")
+    parser.add_option_group(delim)
+
+    actions = OptionGroup(parser, "Adding Items to a Path",
+"""Options are handled in the order listed below; that is, all -H items are
+added before all -E items.  You may pass each option multiple times; within a
+particular option type, items are added in the order presented.""")
+    actions.add_option('-P', '--prepend', dest='prepend', metavar='ITEM',
+                       action='append',
+                       help='Prepend a single item to the list')
+    actions.add_option('-H', '--hook', dest='hook', metavar='NAME',
+                       action='append',
+                       help=
+"""Include directories for a homectl hook.  For example, if "bin" is used,
+'path' will return a list of every directory in which "bin" files may be found
+for this system.""")
+    actions.add_option('-E', '--env', dest='env', metavar='VAR',
+                       action='append',
+                       help=
+"""Include an environment variable.  Items are extracted from the variable by
+splitting it using the delimiter specified with -i (or ':' if -i isn't
+specified).""")
+    actions.add_option('-A', '--append', dest='append', metavar='ITEM',
+                       action='append',
+                       help='Append a single item to the list')
+    parser.add_option_group(actions)
+
     options, args = parser.parse_args(argv)
 
-    dirs = []
-    for p in d.hook_dirs(args[1]):
-        if p not in dirs:
-            dirs.append(p)
+    if not options.hook: options.hook = []
+    if not options.env: options.env = []
+    if not options.append: options.append = []
+    if not options.prepend: options.prepend = []
 
-    if len(args) > 2 and args[2] in os.environ:
-        for p in os.environ[args[2]].split(':'):
-            if p not in dirs:
-                dirs.append(p)
+    if len(args) > 1:
+        options.hook.append(args[1])
+    if len(args) > 2:
+        options.env.append(args[2])
 
-    print(options.delimiter.join(dirs))
+    dirs = options.prepend
+    for hook in options.hook:
+        dirs += d.hook_dirs(hook)
+    for var in options.env:
+        dirs += os.environ.get(var, "").split(options.in_delimiter)
+    dirs += options.append
+
+    uniq_dirs = []
+    for d in dirs:
+        if d not in uniq_dirs:
+            uniq_dirs.append(d)
+
+    print(options.delimiter.join(uniq_dirs))
 
 commands['path'] = cmd_path
 
