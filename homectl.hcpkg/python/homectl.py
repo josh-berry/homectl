@@ -36,9 +36,9 @@ ENABLED_LIST = 'enabled-pkgs'
 
 # Util functions
 
-if sys.version_info.major == 2:
+if sys.version_info[0] == 2:
     def iteritems(coll): return coll.iteritems()
-elif sys.version_info.major == 3:
+elif sys.version_info[0] == 3:
     def iteritems(coll): return coll.items()
 else:
     raise RuntimeError("Don't know what version of Python this is!")
