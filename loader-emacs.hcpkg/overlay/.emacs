@@ -1,6 +1,8 @@
 ; Because we update Info-directory-* below
 (require 'info)
 
+(package-initialize)
+
 ;;;
 ;;; Customization
 ;;;
@@ -28,71 +30,8 @@ about this behvior on Linux."
 
 
 ;;;
-;;; Support functions for homectl packages
-;;;
-
-(defmacro homectl-foreach-enabled (path-var &rest body)
-  "Loop through each enabled homectl package, placing its path in /path-var/."
-  `(dolist (,path-var (process-lines homectl-bin "list"))
-     (when (null (string-match-p "^\\." (file-name-nondirectory ,path-var)))
-       ,@body)))
-
-(defun homectl-require (repo-name repo-url pkg-symbol)
-  "Loads a package, optionally downloading it from the specified package
-repository if it is not already available on the system."
-
-  (cond
-   ; It's already available locally
-   ((require pkg-symbol nil t)
-    pkg-symbol)
-
-   ; See if package.el knows about it
-   (t
-    (homectl-require-package-el)
-    (add-to-list 'package-archives (cons repo-name repo-url))
-
-    ; Try loading it NOW...
-    (unless (require pkg-symbol nil t)
-      ; Must fetch it from the internet
-      (unless (y-or-n-p (concat "[homectl] Install " (symbol-name pkg-symbol)
-                                " from " repo-url "?"))
-        ; User aborted package install
-        (error (concat "[homectl] Couldn't install " (symbol-name pkg-symbol)
-                       " from " repo-url)))
-
-      (package-refresh-contents)
-      (package-install pkg-symbol)
-      (require pkg-symbol)))))
-
-
-
-;;;
-;;; package.el support
-;;;
-
-(defvar homectl-package-el-ready-p nil
-  "Have we already loaded/initialized package.el?")
-
-(defun homectl-require-package-el ()
-  (when (not homectl-package-el-ready-p)
-    (require 'package)
-    (package-initialize)
-    (setq homectl-package-el-ready-p t)))
-
-
-
-;;;
 ;;; Startup-related utility functions
 ;;;
-
-(defun homectl-enable-pkg (pkg-path)
-  "Enable a single homectl package, located at /pkg-path/."
-
-  (let ((start-file (concat pkg-path "/" "emacs.el")))
-
-    ; Load the package's startup file
-    (when (file-exists-p start-file)
-      (load-file start-file))))
 
 (defun homectl-update-env (var hook)
   (let
@@ -160,12 +99,7 @@ environment."
     (dolist (f (directory-files pdir nil "^[^.].*\\.el"))
       (let ((pkg (replace-regexp-in-string "\.el$" "" f)))
         (message "[homectl] Loading %s" pkg)
-        (require (intern pkg)))))
-
-  ; Load old-style homectl hooks
-  (message "[homectl] Loading standard init files...")
-  (homectl-foreach-enabled pkg
-    (homectl-enable-pkg pkg)))
+        (require (intern pkg))))))
 
 
 
