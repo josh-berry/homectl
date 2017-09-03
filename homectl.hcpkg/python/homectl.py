@@ -923,13 +923,20 @@ commands['path'] = cmd_path
 
 def cmd_tree(d, argv):
     parser = OptionParser(
-        usage="""Usage: %s tree [options] HOOK [GLOB]
+        usage="""Usage: %s tree [options] HOOK [GLOB [GLOB ...]]
 
 The 'tree' command searches through the specified HOOK for files and directories
-that match GLOB (which may also be a path).
+that match GLOBs (which may also be a path).
 
-This is equivalent to (but more convenient than) using "hc path" and searching
-each returned path with "find -path GLOB". """ % CMD_NAME)
+This is equivalent to (but more convenient/faster than) using "hc path" and
+searching each returned path with "find -path GLOB".
+
+GLOBs are searched in the order presented; for example, if both '*.sh' and
+'*.zsh' are specified, all files ending in '.sh' will be returned first,
+followed by all files ending in '*.zsh'.  If this isn't the behavior you want,
+consider piping the output through `sort`, `uniq`, or similar.
+
+""" % CMD_NAME)
     parser.add_option('-d', '--delimiter', dest='delimiter', default=' ',
                       help="Separate items with DELIMITER (default: '%default')")
     parser.add_option('-n', '--newlines', dest='delimiter',
@@ -937,11 +944,20 @@ each returned path with "find -path GLOB". """ % CMD_NAME)
                       help='Separate items with newlines.')
     options, args = parser.parse_args(argv)
 
-    if len(args) not in (2, 3):
+    if len(args) < 2:
         parser.print_usage()
         sys.exit(1)
 
-    print(options.delimiter.join([a for a in d.hook_tree(*args[1:])]))
+    hook = args[1]
+    files = []
+
+    if len(args) >= 3:
+        for glob in args[2:]:
+            files.extend([a for a in d.hook_tree(hook, glob)])
+    else:
+        files.extend([a for a in d.hook_tree(hook)])
+
+    print(options.delimiter.join(files))
 
 commands['tree'] = cmd_tree
 
@@ -949,7 +965,7 @@ def cmd_find(d, argv):
     if len(argv) <= 1 or argv[1].startswith('-'):
         print("""Usage: %s find FILE
 
-This command is deprecated.  Use "path" or "files" instead.
+This command is deprecated.  Use "path", "tree", or "files" instead.
 """ % CMD_NAME)
         return
 

@@ -1,3 +1,26 @@
-# We source zshenv again here because it sets some variables that might get
-# overwritten by the system-wide profile.
-source ~/.zshenv
+#!/bin/zsh
+
+if [[ -x ~/.homectl/common/bin/hc ]]; then
+    export PATH="$(~/.homectl/common/bin/hc path bin PATH)"
+
+    case "$(uname -s)" in
+        Linux)
+            export LD_LIBRARY_PATH="$(hc path lib LD_LIBRARY_PATH)"
+            export LD_LIBRARY_PATH="$(hc path lib32 LD_LIBRARY_PATH)"
+            export LD_LIBRARY_PATH="$(hc path lib64 LD_LIBRARY_PATH)"
+            ;;
+        Darwin)
+            export DYLD_LIBRARY_PATH="$(hc path lib DYLD_LIBRARY_PATH)"
+            export DYLD_FRAMEWORK_PATH="$(hc path Frameworks DYLD_FRAMEWORK_PATH)"
+            ;;
+    esac
+fi
+
+
+homectl-run-hooks() {
+    for f in $(hc tree "shell-$1" '*.sh' '*.zsh'); do
+        source "$f"
+    done
+}
+
+homectl-run-hooks env

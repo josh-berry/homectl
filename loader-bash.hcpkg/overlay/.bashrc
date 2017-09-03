@@ -16,36 +16,11 @@ if [[ -x ~/.homectl/common/bin/hc ]]; then
     esac
 fi
 
-homectl-run-hooks-deprecated() {
-    local hook="$1"
-    shift
-
-    for pkg in $(hc list); do
-        if [[ -e "$pkg/$hook" ]]; then
-            source "$pkg/$hook"
-        fi
-        if [[ -e "$pkg/$hook.sh" ]]; then
-            source "$pkg/$hook.sh"
-        fi
-        if [[ -e "$pkg/$hook.bash" ]]; then
-            source "$pkg/$hook.bash"
-        fi
-    done
-}
-
 homectl-run-hooks() {
-    local hook="$1"
-    shift
-
-    for f in $(hc tree shell-$hook '*.sh'); do
-        source "$f"
-    done
-    for f in $(hc tree shell-$hook '*.bash'); do
+    for f in $(hc tree "shell-$1" '*.sh' '*.bash'); do
         source "$f"
     done
 }
 
-homectl-run-hooks-deprecated env
 homectl-run-hooks env
-homectl-run-hooks-deprecated shell
-homectl-run-hooks shell
+homectl-run-hooks rc
