@@ -1,3 +1,3 @@
 #!/bin/zsh
 
-homectl-run-hooks rc
+source ~/.homectl/common/shell-boot/rc.sh
