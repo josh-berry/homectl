@@ -36,6 +36,10 @@ for d in [
 def fileset(base, *paths):
     return set([(f, pj(base, f)) for f in paths])
 
+def file_contents(path):
+    with open(path, 'r') as f:
+        return f.read()
+
 
 
 class HomectlTest(unittest.TestCase):
@@ -79,8 +83,8 @@ class SilentSystem(hc.System):
         self.__log.append(msg)
 
     def dump_log(self):
-        print
-        for l in self.__log: print l
+        print ('')
+        for l in self.__log: print (l)
 
 
 
@@ -112,11 +116,11 @@ class UtilTest(HomectlTest):
         hc.mkdirp('..') # should do nothing
 
         hc.mkdirp('foo')
-        self.assertEquals(os.path.isdir('foo'), True)
+        self.assertEqual(os.path.isdir('foo'), True)
 
         hc.mkdirp(pj('outer', 'inner'))
-        self.assertEquals(os.path.isdir('outer'), True)
-        self.assertEquals(os.path.isdir(pj('outer', 'inner')), True)
+        self.assertEqual(os.path.isdir('outer'), True)
+        self.assertEqual(os.path.isdir(pj('outer', 'inner')), True)
 
     def test_visible_dirs(self):
         self.assertEqual(
@@ -266,7 +270,7 @@ class SystemTest(HomectlTest):
     def test_run_and_readlines(self, s):
         self.assertEqual(
             list(s.run_and_readlines("echo", "Hello")),
-            ["Hello"])
+            [b"Hello"])
         self.assertEqual(list(s.run_and_readlines("true")), [])
         with self.assertRaises(subprocess.CalledProcessError):
             for l in s.run_and_readlines("false"): pass
@@ -274,9 +278,9 @@ class SystemTest(HomectlTest):
     @with_system
     def test_update_file(self, s):
         s.update_file("foo", "bar")
-        self.assertEqual(file("foo", "r").read(), "bar")
+        self.assertEqual(file_contents("foo"), "bar")
         s.update_file("foo", "other")
-        self.assertEqual(file("foo", "r").read(), "other")
+        self.assertEqual(file_contents("foo"), "other")
 
     @with_system
     def test_update_link(self, s):
@@ -300,7 +304,8 @@ class DeploymentTest(HomectlTest):
     # separate test suite below).
 
     def enabled_list(self, d):
-        return set([p.rstrip() for p in file(d.enabled_list, 'r').readlines()])
+        with open(d.enabled_list, 'r') as f:
+            return set([p.rstrip() for p in f.readlines()])
 
     def check_links(self, *lmap, **kw):
         for src, lnk in lmap:
@@ -320,7 +325,7 @@ class DeploymentTest(HomectlTest):
         for f in files:
             path = pj(name, *f.split('/'))
             hc.mkdirp(os.path.dirname(path))
-            file(path, 'w').close()
+            open(path, 'w').close()
 
     @with_deployment
     def test_cfg_vars(self, d):
@@ -463,9 +468,9 @@ class DeploymentTest(HomectlTest):
     def test_refresh_trigger(self, d):
         os.mkdir('trigger.hcpkg')
         # XXX This is a UNIX-ism
-        with file(pj('trigger.hcpkg', 'refresh.trigger'), 'w') as f:
+        with open(pj('trigger.hcpkg', 'refresh.trigger'), 'w') as f:
             f.write('#!/bin/sh\ntouch triggered')
-        os.chmod(pj('trigger.hcpkg', 'refresh.trigger'), 0755)
+        os.chmod(pj('trigger.hcpkg', 'refresh.trigger'), 0o755)
 
         d.packages = [hc.Package('trigger.hcpkg')]
 
@@ -482,9 +487,9 @@ class DeploymentTest(HomectlTest):
     def test_disable_trigger(self, d):
         os.mkdir('trigger.hcpkg')
         # XXX This is a UNIX-ism
-        with file(pj('trigger.hcpkg', 'disable.trigger'), 'w') as f:
+        with open(pj('trigger.hcpkg', 'disable.trigger'), 'w') as f:
             f.write('#!/bin/sh\ntouch triggered')
-        os.chmod(pj('trigger.hcpkg', 'disable.trigger'), 0755)
+        os.chmod(pj('trigger.hcpkg', 'disable.trigger'), 0o755)
 
         d.packages = [hc.Package('trigger.hcpkg')]
 
