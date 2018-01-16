@@ -299,6 +299,10 @@ class DeploymentTest(HomectlTest):
     # Tests for the Deployment class API, except for upgrades (handled in a
     # separate test suite below).
 
+    #
+    # Utility functions
+    #
+
     def enabled_list(self, d):
         with open(d.enabled_list, 'r') as f:
             return set([p.rstrip() for p in f.readlines()])
@@ -322,6 +326,10 @@ class DeploymentTest(HomectlTest):
             path = pj(name, *f.split('/'))
             hc.mkdirp(os.path.dirname(path))
             open(path, 'w').close()
+
+    #
+    # Test cases
+    #
 
     @with_deployment
     def test_cfg_vars(self, d):
@@ -521,23 +529,85 @@ class DeploymentTest(HomectlTest):
 
 
 
-class InitUpgradeTest(HomectlTest):
-    # Tests for the init and upgrade CLI commands, which live outside the
-    # classes and provide some substantial functionality.
+class UpgradeTest(HomectlTest):
+    # Tests related to upgrading pre-0.2 homectl setups to the latest format.
 
     # XXX I'm not really sure how to verify that a newly-created or upgraded
     # homectl setup is "good", since that's highly dependent on what the
     # individual user had in their old setup, or wants to put in their new
     # setup.
+
+    def test_upgrade_is_needed(self):
+        cfg = pj(self.dir, 'cfg-that-needs-upgrade')
+
+        # Pre-Python homectls would just symlink ~/.homectl to somewhere; newer
+        # homectls expect this to be a directory.
+        os.symlink('/', cfg)
+
+        d = hc.Deployment(SilentSystem(), self.dir, cfg)
+        self.assertEqual(d.needs_upgrade, True)
+        with self.assertRaises(hc.NeedsUpgrade): d.packages
+        with self.assertRaises(hc.NeedsUpgrade): d.refresh()
+        with self.assertRaises(hc.NeedsUpgrade): d.enable('foo.hcpkg')
+        with self.assertRaises(hc.NeedsUpgrade): d.disable('foo.hcpkg')
+        with self.assertRaises(hc.NeedsUpgrade): d.uninstall()
+
+    @with_deployment
+    def test_upgrade_not_needed(self, d):
+        cfg = pj(self.dir, hc.CFG_DIR)
+        hc.mkdirp(cfg)
+        self.assertEqual(os.path.isdir(cfg), True)
+        self.assertEqual(d.needs_upgrade, False)
+
+    @with_deployment
+    def test_upgrade_when_not_needed(self, d):
+        d.upgrade() # Should be a no-op
+
+    @with_deployment
+    def test_upgrade(self, d):
+        pkgs = ('one.hcpkg', 'two.hcpkg')
+        enable_d_dir = pj(self.dir, 'enable.d')
+
+        # First, create things that look like old homectl packages
+        for i, p in zip(range(len(pkgs)), pkgs):
+            hc.mkdirp(pj(self.dir, p, 'bin'))
+            open(pj(self.dir, p, 'bin', str(i)), 'w').close()
+
+        # Then create something that looks like hc<0.2's enable.d dir, with a
+        # couple enabled packages inside
+        hc.mkdirp(enable_d_dir)
+        for p in pkgs: os.symlink(pj(self.dir, p), pj(enable_d_dir, p))
+
+        # Then put the ~/.homectl symlink in place
+        new_cfg = pj(self.dir, hc.CFG_DIR)
+        os.symlink(enable_d_dir, new_cfg)
+
+        # Finally call upgrade()
+        d.upgrade()
+
+        self.assertEqual(d.needs_upgrade, False)
+        self.assertEqual(os.path.isdir(new_cfg), True)
+        self.assertEqual(os.path.islink(new_cfg), False)
+        self.assertEqual(set(hc.fs_tree(new_cfg)),
+                         fileset(new_cfg,
+                                 'enabled-pkgs',
+                                 'common',
+                                 'common/bin',
+                                 'common/bin/0',
+                                 'common/bin/1'))
+        self.assertEqual(set(d.packages), set([hc.Package(pj(self.dir, p))
+                                               for p in pkgs]))
+
+
+
+class InitTest(HomectlTest):
+    # Tests for creating new homectl deployments.
     pass
 
 
 
 class CLITest(HomectlTest):
-    # Tests for other CLI commands which provide significant functionality.
-
-    # XXX We don't really have any of these right now -- "path" and "find" would
-    # fall into this category, but they are both fairly trivial.
+    # System-level tests for CLI commands themselves.
     pass
 
 

@@ -116,6 +116,15 @@ def sh_quote(text):
 
 
 
+class NeedsUpgrade(ValueError):
+    # Raised when the homectl setup or deployment needs to be upgraded using the
+    # "hc upgrade" command.
+    def __init__(self):
+        super(NeedsUpgrade, self).__init__(
+            "Please run '%s upgrade'." % CMD_NAME)
+
+
+
 class Package(object):
     # A Package represents a single homectl package.  Packages contain files for
     # specific "systems" and "hooks".  homectl packages are stored as
@@ -380,7 +389,7 @@ class Deployment(object):
 
     def _assert_current_ver(self):
         if self.needs_upgrade:
-            raise IOError('Please run "%s upgrade".' % CMD_NAME)
+            raise NeedsUpgrade()
 
     def upgrade(self):
         if not self.needs_upgrade:
