@@ -82,10 +82,6 @@ class SilentSystem(hc.System):
     def log(self, msg):
         self.__log.append(msg)
 
-    def dump_log(self):
-        print ('')
-        for l in self.__log: print (l)
-
 
 
 def with_system(fn):
