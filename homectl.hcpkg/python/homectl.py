@@ -36,11 +36,11 @@ ENABLED_LIST = 'enabled-pkgs'
 
 # Util functions
 
-if sys.version_info[0] == 2:
+if sys.version_info[0] == 2: # pragma: no cover
     def iteritems(coll): return coll.iteritems()
 elif sys.version_info[0] == 3:
     def iteritems(coll): return coll.items()
-else:
+else: # pragma: no cover
     raise RuntimeError("Don't know what version of Python this is!")
 
 def mkdirp(path):
@@ -77,7 +77,6 @@ def fs_tree(path):
         return
 
     for ent in os.listdir(path):
-        if ent in ['.', '..']: continue
         entp = os.path.join(path, ent)
 
         yield ent, entp
@@ -992,5 +991,5 @@ def main(d, argv):
 
 
 
-if __name__ == '__main__':
+if __name__ == '__main__': # pragma: no cover
     main(Deployment(ConsoleSystem(pretend=False)), sys.argv)
