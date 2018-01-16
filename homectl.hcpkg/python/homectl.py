@@ -277,9 +277,10 @@ class System(object):
         proc = subprocess.Popen(args, stdout=subprocess.PIPE,
                                 stderr=subprocess.STDOUT, close_fds=True,
                                 **opts)
-        for line in proc.stdout.readlines():
-            self.log_output(line)
-            yield line.rstrip()
+        with proc.stdout:
+            for line in proc.stdout.readlines():
+                self.log_output(line)
+                yield line.rstrip()
 
         rc = proc.wait()
         if rc != 0:
