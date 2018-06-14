@@ -195,7 +195,7 @@ class Package(object):
         if not os.path.isdir(d): return
 
         for name, path in visible_dirs(d):
-            if not re.match('^[A-Z].*', name):
+            if not re.match('^[A-Z_].*', name):
                 yield name
 
     def files_in_sys_hook(self, system, hook):
@@ -207,7 +207,8 @@ class Package(object):
         return fs_files_in(d)
 
     def trigger_path(self, trigger):
-        tpath = os.path.join(self.path, "%s.trigger" % (trigger,))
+        tpath = os.path.join(
+            self.path, "%s.trigger" % (trigger,) if trigger else '_trigger')
         if os.path.isfile(tpath) and os.access(tpath, os.X_OK):
             return tpath
         return None
@@ -286,7 +287,9 @@ class System(object):
                                 stderr=subprocess.STDOUT, close_fds=True,
                                 **opts)
         with proc.stdout:
-            for line in proc.stdout.readlines():
+            while True:
+                line = proc.stdout.readline()
+                if not line: break
                 self.log_output(line)
                 yield line.rstrip()
 
@@ -429,9 +432,9 @@ class Deployment(object):
     def packages(self, pkgs):
         self._assert_current_ver()
 
-        # Run removal triggers
-        for pkg in set(self.packages) - set(pkgs):
-            self.run_pkg_trigger(pkg, "disable")
+        # Run pre-removal triggers
+        removing_pkgs = set(self.packages) - set(pkgs)
+        for pkg in removing_pkgs: self.run_pkg_trigger(pkg, "disable")
 
         pkg_paths = sorted(set([os.path.relpath(p.path, self.homedir)
                                 for p in pkgs]))
@@ -439,6 +442,9 @@ class Deployment(object):
         self.sys.update_file(self.enabled_list,
                              "\n".join(pkg_paths) + "\n")
         self.refresh()
+
+        # Run post-removal triggers
+        for pkg in removing_pkgs: self.run_pkg_trigger(pkg, "clean")
 
     def hook_dirs(self, hook):
         self._assert_current_ver()
@@ -456,17 +462,23 @@ class Deployment(object):
                 if not glob or fnmatch.fnmatch(r, glob):
                     yield a
 
-    def run_pkg_trigger(self, pkg, trigger, *args):
+    def run_pkg_trigger(self, pkg, trigger):
         tpath = pkg.trigger_path(trigger)
+        if not tpath: tpath = pkg.trigger_path('')
         if tpath:
             try:
-                self.sys.run(tpath, *args)
+                self.sys.run(tpath, trigger, cwd=pkg.path)
                 return 0
             except subprocess.CalledProcessError as e:
                 return e.returncode
 
     def refresh(self):
         self._assert_current_ver()
+
+        # Run pre-refresh triggers so packages can create things in
+        # homectl-visible directories if necessary.
+        for p in self.packages:
+            self.run_pkg_trigger(p, "build")
 
         link_map = {} # link_path_in_cfgdir: link_text
         overlay_links = set() # relative paths under $cfgdir/common/overlay
