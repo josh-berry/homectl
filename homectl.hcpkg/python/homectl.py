@@ -158,10 +158,10 @@ class Package(object):
     # files go directly under foo.hcpkg/overlay.
 
     def __init__(self, path):
-        if not path.endswith('.hcpkg'):
-            raise IOError("%s: Not a homectl package" % path)
-
         self.path = os.path.abspath(path)
+
+        if not self.path.endswith('.hcpkg'):
+            raise IOError("%s: Not a homectl package" % self.path)
 
     def __eq__(self, other):
         return os.path.realpath(self.path) == os.path.realpath(other.path)
