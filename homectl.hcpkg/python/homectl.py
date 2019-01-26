@@ -415,11 +415,11 @@ class Deployment(object):
         self._assert_current_ver()
         try:
             with open(self.enabled_list, 'r') as f:
-                return [Package(os.path.join(self.homedir, l.strip()))
-                        for l in f.readlines()
-                        if l.strip() != '']
+                return set((Package(os.path.join(self.homedir, l.strip()))
+                            for l in f.readlines()
+                            if l.strip() != ''))
         except IOError:
-            return []
+            return set()
 
     @packages.setter
     def packages(self, pkgs):
@@ -832,9 +832,7 @@ up the new features.
 """ % CMD_NAME)
         return
 
-    for path in argv[1:]:
-        p = Package(path)
-        d.enable(p)
+    d.packages = d.packages.union([Package(path) for path in argv[1:]])
 
 commands['enable'] = cmd_enable
 commands['en'] = cmd_enable
@@ -851,9 +849,7 @@ disabled.
 """ % CMD_NAME)
         return
 
-    for path in argv[1:]:
-        p = Package(path)
-        d.disable(p)
+    d.packages = d.packages.difference([Package(path) for path in argv[1:]])
 
 commands['disable'] = cmd_disable
 commands['dis'] = cmd_disable
@@ -983,7 +979,7 @@ This command is deprecated.  Use "path", "tree", or "files" instead.
         return
 
     # XXX This is for compatibility with homectl <= 0.2
-    for p in d.packages:
+    for p in sorted(d.packages):
         for f in os.listdir(p.path):
             if f == argv[1]:
                 print(os.path.join(p.path, f))

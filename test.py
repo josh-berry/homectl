@@ -333,24 +333,24 @@ class DeploymentTest(HomectlTest):
 
     @with_deployment
     def test_add_package_updates_enabled_list(self, d):
-        self.assertEqual(d.packages, [])
+        self.assertEqual(d.packages, set())
 
-        d.packages = [hc.Package(self.EMPTY)]
+        d.packages = set([hc.Package(self.EMPTY)])
         self.assertEqual(self.enabled_list(d),
             set([os.path.relpath(p, self.dir) for p in [self.EMPTY]]))
-        self.assertEqual(d.packages, [hc.Package(self.EMPTY)])
+        self.assertEqual(d.packages, set([hc.Package(self.EMPTY)]))
 
-        d.packages = d.packages + [hc.Package(self.FULL)]
+        d.packages = d.packages.union([hc.Package(self.FULL)])
         self.assertEqual(self.enabled_list(d),
             set([os.path.relpath(p, self.dir) for p in [self.EMPTY, self.FULL]]))
-        self.assertEqual(set(d.packages),
+        self.assertEqual(d.packages,
             set([hc.Package(self.EMPTY), hc.Package(self.FULL)]))
 
     @with_deployment
     def test_add_package_creates_homectl_links(self, d):
-        self.assertEqual(d.packages, [])
+        self.assertEqual(d.packages, set())
 
-        d.packages = [hc.Package(self.FULL)]
+        d.packages = set([hc.Package(self.FULL)])
 
         # Just spot-check a few things
         self.check_links(
@@ -368,7 +368,7 @@ class DeploymentTest(HomectlTest):
 
     @with_deployment
     def test_rm_package_deletes_homectl_links(self, d):
-        d.packages = [hc.Package(self.FULL)]
+        d.packages = set([hc.Package(self.FULL)])
 
         self.check_links(
             ('.homectl/common/bin/hello', 'package-full.hcpkg/bin/hello'),
@@ -377,7 +377,7 @@ class DeploymentTest(HomectlTest):
             testdata=True,
         )
 
-        d.packages = []
+        d.packages = set()
 
         self.check_absence(
             '.homectl/common/bin/hello',
@@ -388,7 +388,7 @@ class DeploymentTest(HomectlTest):
     @with_deployment
     def test_refresh_creates_links(self, d):
         self.mk_files('small.hcpkg', 'bin/foo', 'Linux/bin/bar')
-        d.packages = [hc.Package('small.hcpkg')]
+        d.packages = set([hc.Package('small.hcpkg')])
         self.check_links(
             ('.homectl/common/bin/foo', 'small.hcpkg/bin/foo'),
             ('.homectl/Linux/bin/bar', 'small.hcpkg/Linux/bin/bar'),
@@ -407,7 +407,7 @@ class DeploymentTest(HomectlTest):
     @with_deployment
     def test_refresh_deletes_links(self, d):
         self.mk_files('small.hcpkg', 'bin/foo', 'Linux/bin/bar')
-        d.packages = [hc.Package('small.hcpkg')]
+        d.packages = set([hc.Package('small.hcpkg')])
         self.check_links(
             ('.homectl/common/bin/foo', 'small.hcpkg/bin/foo'),
             ('.homectl/Linux/bin/bar', 'small.hcpkg/Linux/bin/bar'),
@@ -424,7 +424,7 @@ class DeploymentTest(HomectlTest):
     @with_deployment
     def test_overlay_create_links(self, d):
         self.mk_files('overlay.hcpkg', 'overlay/.mycfg', 'overlay/.config/my')
-        d.packages = [hc.Package('overlay.hcpkg')]
+        d.packages = set([hc.Package('overlay.hcpkg')])
         self.check_links(
             ('.homectl/common/overlay/.mycfg', 'overlay.hcpkg/overlay/.mycfg'),
             ('.homectl/common/overlay/.config/my', 'overlay.hcpkg/overlay/.config/my'),
@@ -435,7 +435,7 @@ class DeploymentTest(HomectlTest):
     @with_deployment
     def test_overlay_delete_links_on_refresh(self, d):
         self.mk_files('overlay.hcpkg', 'overlay/.mycfg', 'overlay/.config/my')
-        d.packages = [hc.Package('overlay.hcpkg')]
+        d.packages = set([hc.Package('overlay.hcpkg')])
         self.check_links(
             ('.homectl/common/overlay/.mycfg', 'overlay.hcpkg/overlay/.mycfg'),
             ('.homectl/common/overlay/.config/my', 'overlay.hcpkg/overlay/.config/my'),
@@ -455,11 +455,11 @@ class DeploymentTest(HomectlTest):
         self.mk_files('overlay.hcpkg', 'overlay/.mycfg')
         self.mk_files('.', '.mycfg')
 
-        d.packages = [hc.Package('overlay.hcpkg')]
+        d.packages = set([hc.Package('overlay.hcpkg')])
         self.assertTrue(os.path.exists('.mycfg'))
         self.assertFalse(os.path.islink('.mycfg'))
 
-        d.packages = []
+        d.packages = set()
         self.assertTrue(os.path.exists('.mycfg'))
 
     @with_deployment
@@ -471,7 +471,7 @@ class DeploymentTest(HomectlTest):
         os.chmod(pj('trigger.hcpkg', '_trigger'), 0o755)
 
         pkg = hc.Package('trigger.hcpkg')
-        d.packages = [pkg]
+        d.packages = set([pkg])
 
         with open(pj(self.dir, 'triggered')) as f:
             self.assertEqual(pkg.path, f.readline().strip())
@@ -487,7 +487,7 @@ class DeploymentTest(HomectlTest):
         pkg = hc.Package('trigger.hcpkg')
         sentinel = pj(pkg.path, 'triggered')
 
-        d.packages = [pkg]
+        d.packages = set([pkg])
 
         # Trigger should have run
         self.assertTrue(os.path.exists(sentinel))
@@ -509,7 +509,7 @@ class DeploymentTest(HomectlTest):
         pkg = hc.Package('trigger.hcpkg')
         sentinel = pj(pkg.path, 'triggered')
 
-        d.packages = [pkg]
+        d.packages = set([pkg])
 
         # Shouldn't have run yet
         self.assertFalse(os.path.exists(sentinel))
@@ -520,7 +520,7 @@ class DeploymentTest(HomectlTest):
             '.homectl/common/_trigger',
         )
 
-        d.packages = []
+        d.packages = set()
 
         # Trigger should have run
         self.assertTrue(os.path.exists(sentinel))
@@ -528,7 +528,7 @@ class DeploymentTest(HomectlTest):
     @with_deployment
     def test_hook_tree(self, d):
         plat = os.uname()[0]
-        d.packages = [hc.Package(self.FULL)]
+        d.packages = set([hc.Package(self.FULL)])
 
         self.assertEqual(
             set(d.hook_tree('bin', 'h*')),
@@ -609,8 +609,8 @@ class UpgradeTest(HomectlTest):
                                  'common/bin',
                                  'common/bin/0',
                                  'common/bin/1'))
-        self.assertEqual(set(d.packages), set([hc.Package(pj(self.dir, p))
-                                               for p in pkgs]))
+        self.assertEqual(d.packages,
+                         set([hc.Package(pj(self.dir, p)) for p in pkgs]))
 
 
 
