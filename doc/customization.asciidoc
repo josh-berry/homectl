@@ -489,16 +489,20 @@ Reference: Triggers
 -------------------
 
 If simple symlinking isn't enough to deploy a package, homectl provides a way to
-run programs when packages are enabled (actually, refreshed) or disabled.
-Triggers are always placed in the top-level package directory; they are
-currently not system-specific, so they should be written in such a way as to
-apply to all platforms.
+run programs when packages are enabled (actually, refreshed) or disabled.  Just
+create a program named +_trigger+ in the top-level package directory.
 
-Triggers are run in a non-interactive context (user input is not supported),
-with the trigger name as their sole parameter (for example: +build.trigger
-build+).  They are always run from the top-level +*.hcpkg+ directory.
+Triggers are currently not system-specific, so they should be written in such a
+way as to apply to all platforms.  They are also non-interactive (user input is
+not supported).
 
-+build.trigger+::
+Triggers are run with the trigger name as their sole parameter (for example:
++_trigger build+).  They are always run from the top-level +*.hcpkg+ directory
+(so +pwd+ or the equivalent will tell you where your package lives).
+
+The following triggers are supported:
+
++build+::
     Prior to symlinking the contents of a package into +~/.homectl+, the +build+
     trigger is run.  This trigger may create generated files inside the package
     itself, and homectl will pick up those files and symlink them.  When a
@@ -507,34 +511,54 @@ build+).  They are always run from the top-level +*.hcpkg+ directory.
     file called +refresh.trigger+.  If this file exists and is executable,
     homectl will run it after symlinking the package's files into +~/.homectl+.
 
-+refresh.trigger+::
++refresh+::
     After a package has been symlinked into +~/.homectl+, the +refresh+ trigger
     is run.  If +refresh.trigger+ modifies any of the files in the homectl
     package, homectl will **not** notice this until the next time +hc refresh+
     is run.
 
-+disable.trigger+::
++disable+::
     Before a package is disabled and unlinked from +~/.homectl+, the +disable+
     trigger is run.
 
-+clean.trigger+::
++clean+::
     After a package is disabled and has been unlinked from +~/.homectl+, the
     +clean+ trigger is run.  This is the place to remove build artifacts and do
     general cleanup of the package directory, if required.
 
-Alternatively, if you would prefer to keep the code for all triggers within a
-single script, you can create one file called +_trigger+.  If any of the
-+foo.trigger+ files listed above does not exist or is not executable, homectl
-will look for and run +_trigger+ instead.
+Here are a couple examples showing how to write shell scripts and/or makefiles
+to be run as triggers.
 
-This is particularly useful if you would like to write your triggers as
-makefiles; the following skeleton is an example of how to do this:
+Example: Shell Script
+~~~~~~~~~~~~~~~~~~~~~
+
+--------------------------------------------------------------------------------
+#!/bin/sh
+
+case "$1" in
+    build)
+        # Things to do prior to enabling/refreshing the package
+        ;;
+    refresh)
+        # Things to do when the package has just been refreshed/enabled
+        ;;
+    disable)
+        # Things to do before the package is disabled
+        ;;
+    clean)
+        # Things to do to cleanup after the package is disabled
+        ;;
+esac
+--------------------------------------------------------------------------------
+
+Example: Makefile
+~~~~~~~~~~~~~~~~~
 
 --------------------------------------------------------------------------------
 #!/usr/bin/env make -f
 
-# Put this file in the top level of your package's directory, and name it
-# "_trigger".
+# Put this file in the top level of your package's directory, name it
+# "_trigger", and make it executable.
 
 build:
         # Things to do prior to enabling/refreshing the package
@@ -547,5 +571,7 @@ disable:
 
 clean:
         # Things to do to cleanup after the package is disabled
+
+.PHONY: build refresh disable clean
 
 --------------------------------------------------------------------------------

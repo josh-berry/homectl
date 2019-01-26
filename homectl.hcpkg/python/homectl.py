@@ -206,13 +206,6 @@ class Package(object):
         if not os.path.isdir(d): return []
         return fs_files_in(d)
 
-    def trigger_path(self, trigger):
-        tpath = os.path.join(
-            self.path, "%s.trigger" % (trigger,) if trigger else '_trigger')
-        if os.path.isfile(tpath) and os.access(tpath, os.X_OK):
-            return tpath
-        return None
-
     #
     # Derived Functionality
     #
@@ -463,9 +456,8 @@ class Deployment(object):
                     yield a
 
     def run_pkg_trigger(self, pkg, trigger):
-        tpath = pkg.trigger_path(trigger)
-        if not tpath: tpath = pkg.trigger_path('')
-        if tpath:
+        tpath = os.path.join(pkg.path, '_trigger')
+        if os.path.isfile(tpath) and os.access(tpath, os.X_OK):
             try:
                 self.sys.run(tpath, trigger, cwd=pkg.path)
                 return 0

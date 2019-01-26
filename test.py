@@ -210,12 +210,6 @@ class PackageTest(HomectlTest):
         self.assertEqual(set(p.files_in_sys_hook('Linux', 'share')), set())
         self.assertEqual(set(p.files_in_sys_hook('Plan9', 'bin')), set())
 
-    def test_trigger_path(self):
-        p = hc.Package(self.FULL)
-        self.assertEqual(p.trigger_path('exec'), pj(self.FULL, 'exec.trigger'))
-        self.assertEqual(p.trigger_path('not-exec'), None)
-        self.assertEqual(p.trigger_path('missing'), None)
-
     def test_file_map(self):
         def filemap(*l):
             return set([
@@ -469,47 +463,67 @@ class DeploymentTest(HomectlTest):
         self.assertTrue(os.path.exists('.mycfg'))
 
     @with_deployment
+    def test_trigger_pwd(self, d):
+        os.mkdir('trigger.hcpkg')
+        # XXX This is a UNIX-ism
+        with open(pj('trigger.hcpkg', '_trigger'), 'w') as f:
+            f.write('#!/bin/sh\npwd > %s\n' % pj(self.dir, 'triggered'))
+        os.chmod(pj('trigger.hcpkg', '_trigger'), 0o755)
+
+        pkg = hc.Package('trigger.hcpkg')
+        d.packages = [pkg]
+
+        with open(pj(self.dir, 'triggered')) as f:
+            self.assertEqual(pkg.path, f.readline().strip())
+
+    @with_deployment
     def test_refresh_trigger(self, d):
         os.mkdir('trigger.hcpkg')
         # XXX This is a UNIX-ism
-        with open(pj('trigger.hcpkg', 'refresh.trigger'), 'w') as f:
-            f.write('#!/bin/sh\ntouch triggered')
-        os.chmod(pj('trigger.hcpkg', 'refresh.trigger'), 0o755)
+        with open(pj('trigger.hcpkg', '_trigger'), 'w') as f:
+            f.write('#!/bin/sh\n[ "$1" = refresh ] && touch triggered\n')
+        os.chmod(pj('trigger.hcpkg', '_trigger'), 0o755)
 
-        d.packages = [hc.Package('trigger.hcpkg')]
+        pkg = hc.Package('trigger.hcpkg')
+        sentinel = pj(pkg.path, 'triggered')
+
+        d.packages = [pkg]
 
         # Trigger should have run
-        self.assertTrue(os.path.exists('triggered'))
+        self.assertTrue(os.path.exists(sentinel))
 
         # Triggers should not be linked into ~/.homectl
         self.check_absence(
-            '.homectl/refresh.trigger',
-            '.homectl/common/refresh.trigger',
+            '.homectl/_trigger',
+            '.homectl/common/_trigger',
         )
 
     @with_deployment
     def test_disable_trigger(self, d):
         os.mkdir('trigger.hcpkg')
         # XXX This is a UNIX-ism
-        with open(pj('trigger.hcpkg', 'disable.trigger'), 'w') as f:
-            f.write('#!/bin/sh\ntouch triggered')
-        os.chmod(pj('trigger.hcpkg', 'disable.trigger'), 0o755)
+        with open(pj('trigger.hcpkg', '_trigger'), 'w') as f:
+            f.write('#!/bin/sh\n[ "$1" = disable ] && touch triggered\n')
+        os.chmod(pj('trigger.hcpkg', '_trigger'), 0o755)
 
-        d.packages = [hc.Package('trigger.hcpkg')]
+        pkg = hc.Package('trigger.hcpkg')
+        sentinel = pj(pkg.path, 'triggered')
+
+        d.packages = [pkg]
 
         # Shouldn't have run yet
-        self.assertFalse(os.path.exists('triggered'))
+        self.assertFalse(os.path.exists(sentinel))
 
         # Triggers should not be linked into ~/.homectl
         self.check_absence(
-            '.homectl/disable.trigger',
-            '.homectl/common/disable.trigger',
+            '.homectl/_trigger',
+            '.homectl/common/_trigger',
         )
 
         d.packages = []
 
         # Trigger should have run
-        self.assertTrue(os.path.exists('triggered'))
+        self.assertTrue(os.path.exists(sentinel))
 
     @with_deployment
     def test_hook_tree(self, d):
