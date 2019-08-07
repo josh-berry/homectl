@@ -966,7 +966,8 @@ consider piping the output through `sort`, `uniq`, or similar.
     else:
         files.extend([a for a in d.hook_tree(hook)])
 
-    print(options.delimiter.join(files))
+    if files:
+        print(options.delimiter.join(files))
 
 commands['tree'] = cmd_tree
 
