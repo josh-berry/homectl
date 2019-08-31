@@ -99,7 +99,14 @@ environment."
     (dolist (f (directory-files pdir nil "^[^.].*\\.el"))
       (let ((pkg (replace-regexp-in-string "\.el$" "" f)))
         (message "[homectl] Loading %s" pkg)
-        (require (intern pkg))))))
+        (require (intern pkg)))))
+
+  ;; Load customizations.  We move them out of ~/.emacs (this file) so that
+  ;; emacs isn't constantly making changes that appear in homectl's git
+  ;; repository.
+  (setq custom-file "~/.emacs.d/custom.el")
+  (if (file-exists-p custom-file)
+      (load custom-file)))
 
 
 
