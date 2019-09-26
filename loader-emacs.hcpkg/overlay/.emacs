@@ -54,26 +54,15 @@ environment."
   ; The following is a Darwin-specific hack to make sure the shell's $PATH
   ; is picked up by Emacs when running in Aqua mode.
   (when (and (string= system-type "darwin") homectl-darwin-fixup-path)
-    (with-temp-buffer
-    ; collect /etc/paths.d/* and /etc/paths in a buffer
-    (dolist (f (directory-files "/etc/paths.d" t "[^\\.]"))
-      (insert-file-contents f))
-    (insert-file-contents "/etc/paths")
+    (let
+        ((shellpath (car (process-lines (getenv "SHELL")
+					"-l" "-c" "echo $PATH"))))
+      (message (concat "[homectl] Fixing up PATH: " shellpath))
+      (setenv "PATH" shellpath)
 
-    ; s/\n+/:/g
-    (goto-char (point-min))
-    (while (re-search-forward "\n+" nil t)
-      (replace-match ":"))
-    ; strip trailing :
-    (re-search-backward ":+")
-    (replace-match "")
-
-    (message (concat "[homectl] Fixing up PATH: " (buffer-string)))
-    (setenv "PATH" (buffer-string))
-
-    ; Appending here to preserve Emacs-internal paths
-    (setq exec-path (append (split-string (getenv "PATH") ":" t) exec-path))
-    (delete-dups exec-path)))
+      ;; Appending here to preserve Emacs-internal paths
+      (setq exec-path (append (split-string (getenv "PATH") ":" t) exec-path))
+      (delete-dups exec-path)))
 
   ; Find all the enabled homectl packages and load them/add them to Emacs's
   ; paths.
