@@ -627,7 +627,7 @@ filesystem path for the URL, it must be an absolute path.
 
     # Stuff to create or update
     gitrepo = argv[1]
-    readme = os.path.join(gitrepo, 'README.asciidoc')
+    readme = os.path.join(gitrepo, 'README.md')
     deploy_sh = os.path.join(gitrepo, 'deploy.sh')
 
     # Figure out what packages to enable by default
@@ -687,16 +687,16 @@ your own homectl packages.
 
 A few files and directories have been included here to start you off.
 
-README.asciidoc::
-    This file.
+- `README.md`: This file.
 
-homectl.hcpkg/::
-    A git submodule containing homectl itself.  It includes the +%(cmd)s+
-    command and its accompaniing documentation.
+- `homectl/`: A git submodule containing homectl itself.  It includes the
+  `%(cmd)s` command and its accompaniing documentation.
 
-deploy.sh::
-    A handy, one-step script to run on new machines to instantly deploy your
-    painstakingly-crafted homectl configuration.
+- `deploy.sh`: A handy, one-step script to run on new machines to instantly
+  deploy your painstakingly-crafted homectl configuration.
+
+NOTE: Make sure the `homectl.hcpkg` package itself remains enabled, or you won't
+be able to use the `hc` command to manage your setup.
 """ % {'user': os.environ['LOGNAME'], 'cmd': CMD_NAME})
 
     d.sys.run('git', 'add', os.path.basename(readme), cwd=gitrepo)
@@ -706,7 +706,7 @@ deploy.sh::
 # This script deploys your homectl setup into your home directory, by enabling
 # a default set of homectl packages.
 
-cd "\$(dirname "\$0")"
+cd "$(dirname "$0")"
 %(cmd)s=./homectl/homectl.hcpkg/bin/%(cmd)s
 
 set -e
