@@ -808,15 +808,21 @@ again to get your homectl deployment back.
 commands['uninstall'] = cmd_uninstall
 
 def cmd_list(d, argv):
-    if len(argv) > 1:
-        print("""Usage: %s list
+    parser = OptionParser(
+        usage="""Usage: %s list [options]
 
-List all enabled packages.
-""" % CMD_NAME)
-        return
+List all enabled packages.""" % CMD_NAME)
+    parser.add_option('-r', '--relative', dest='relative', default=False,
+                      action='store_true',
+                      help="Print paths relative to the current directory")
+    options, args = parser.parse_args(argv)
 
-    for p in sorted(d.packages):
-        print(p.path)
+    pkgs = [p.path for p in d.packages]
+    if options.relative:
+        pkgs = [os.path.relpath(p) for p in pkgs]
+
+    for p in sorted(pkgs):
+        print(p)
 commands['list'] = cmd_list
 commands['ls'] = cmd_list
 
