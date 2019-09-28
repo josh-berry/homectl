@@ -16,10 +16,14 @@ from optparse import OptionParser, OptionGroup
 import fnmatch
 
 # If we are imported as a module, this is our API.
-__all__ = ['HOME', 'HOMECTL_DIR', 'DEFAULT_HOMECTL_URL',
-           'System', 'ConsoleSystem',
-           'Deployment', 'Package',
-           'main']
+__all__ = [
+    'HOME', 'HOMECTL_DIR', 'DEFAULT_HOMECTL_URL',
+    'System', 'ConsoleSystem',
+    'Deployment', 'Package',
+    'main',
+
+    'HomectlError', 'PackageError',
+]
 
 
 VERSION = '0.3'
@@ -33,6 +37,10 @@ DEFAULT_HOMECTL_PKGS = ['homectl.hcpkg',
                         'loader-bash.hcpkg', 'loader-zsh.hcpkg']
 
 ENABLED_LIST = 'enabled-pkgs'
+
+# Errors
+class HomectlError(Exception): pass
+class PackageError(HomectlError): pass
 
 # Util functions
 
@@ -152,7 +160,7 @@ class Package(object):
         self.path = os.path.abspath(path)
 
         if not self.path.endswith('.hcpkg'):
-            raise IOError("%s: Not a homectl package" % self.path)
+            raise PackageError("%s: Not a homectl package" % self.path)
 
     def __eq__(self, other):
         return os.path.realpath(self.path) == os.path.realpath(other.path)
@@ -907,7 +915,7 @@ This command is deprecated.  Use "path", "tree", or "files" instead.
                 print(os.path.join(p.path, f))
 commands['find'] = cmd_find
 
-def main(d, argv):
+def main(argv):
     show_help = len(argv) < 2 or argv[1] == 'help' or argv[1] == '--help'
 
     if show_help:
@@ -918,9 +926,21 @@ def main(d, argv):
         except KeyError:
             raise
 
-    cmd(d, argv[1:])
+    system = ConsoleSystem(pretend=False)
+
+    try:
+        d = Deployment(system)
+        cmd(d, argv[1:])
+
+    except KeyboardInterrupt: return 1
+    except SystemExit: raise
+    except (HomectlError, EnvironmentError) as e:
+        system.log_err('[%s] %s' % (type(e).__name__, str(e)))
+        return 1
+
+    return 0
 
 
 
 if __name__ == '__main__': # pragma: no cover
-    main(Deployment(ConsoleSystem(pretend=False)), sys.argv)
+    sys.exit(main(sys.argv))
