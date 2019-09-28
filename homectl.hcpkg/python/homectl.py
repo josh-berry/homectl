@@ -31,7 +31,7 @@ VERSION = '0.3'
 # System defaults that are hard to change.
 CMD_NAME = 'hc'
 HOME = os.environ['HOME']
-CFG_DIR = os.environ.get('HOMECTL_DIR_NAME', '.homectl')
+CFG_DIR = os.environ.get('HOMECTL_DIR', os.path.join(HOME, '.homectl'))
 DEFAULT_HOMECTL_URL = "git://github.com/josh-berry/homectl.git"
 DEFAULT_HOMECTL_PKGS = ['homectl.hcpkg',
                         'loader-bash.hcpkg', 'loader-zsh.hcpkg']
@@ -350,11 +350,11 @@ class Deployment(object):
     # all the changes.
     #
     # The contents of enabled packages are symlinked in the config dir (see
-    # CFG_DIR).  A directory tree under ~/$CFG_DIR is created for all the
+    # CFG_DIR).  A directory tree under $CFG_DIR is created for all the
     # systems and hooks in all the user's enabled packages.  Links are
     # maintained in the form:
     #
-    #     ~/$CFG_DIR/<system>/<hook>/<path_to_file_in_pkg>
+    #     $CFG_DIR/<system>/<hook>/<path_to_file_in_pkg>
     #
     # Additionally, any files in the "common/overlay" system/hook are linked
     # directly underneath the user's home directory.  This "overlay" hook is
@@ -365,26 +365,17 @@ class Deployment(object):
     # apply to the current system.  The latter enumerates all the files within a
     # particular hook which apply to the current system.
 
-    def __init__(self, system, homedir=HOME, cfgdir=None):
+    def __init__(self, system, homedir=HOME, cfgdir=CFG_DIR):
         self.sys = system
 
         self.homedir = os.path.realpath(homedir)
-
-        if not cfgdir:
-            cfgdir = os.path.join(self.homedir, CFG_DIR)
-        self.cfgdir = cfgdir
-
-        self.enabled_list = os.path.join(self.cfgdir, ENABLED_LIST)
+        self.cfgdir = os.path.realpath(cfgdir)
+        self.enabled_list = PackageListFile(
+            system, os.path.join(self.cfgdir, ENABLED_LIST), self.homedir)
 
     @property
     def packages(self):
-        try:
-            with open(self.enabled_list, 'r') as f:
-                return set((Package(os.path.join(self.homedir, l.strip()))
-                            for l in f.readlines()
-                            if l.strip() != ''))
-        except IOError:
-            return set()
+        return self.enabled_list.packages
 
     @packages.setter
     def packages(self, pkgs):
@@ -392,11 +383,7 @@ class Deployment(object):
         removing_pkgs = set(self.packages) - set(pkgs)
         for pkg in removing_pkgs: self.run_pkg_trigger(pkg, "disable")
 
-        pkg_paths = sorted(set([os.path.relpath(p.path, self.homedir)
-                                for p in pkgs]))
-
-        self.sys.update_file(self.enabled_list,
-                             "\n".join(pkg_paths) + "\n")
+        self.enabled_list.packages = pkgs
         self.refresh()
 
         # Run post-removal triggers
@@ -514,6 +501,73 @@ class Deployment(object):
         self.sys.log('')
         self.sys.log('homectl has been uninstalled.')
         self.sys.log('')
+
+
+
+class PackageListFile(object):
+    # A file containing a list of packages.  The packages themselves are
+    # accessible through the .packages property, which is expected to be a set
+    # of Packages.  When .packages is set, the file is updated incrementally (to
+    # preserve comments and be friendly to version control) and written to disk.
+
+    def __init__(self, sys, path, relative_to=None):
+        self.sys = sys
+        self.path = path
+        self.relative_to = relative_to if relative_to \
+            else os.path.dirname(self.path)
+
+        self.__pkgs = set((p for p in self._read_pkg_lines()
+                           if isinstance(p, Package)))
+
+    def _read_pkg_lines(self):
+        # Reads the package list line by line, replacing recognized package
+        # paths with package objects, and yielding the remaining lines
+        # (comments, etc.) as strings.
+        try:
+            with open(self.path, 'r') as f:
+                for l in f.readlines():
+                    if l.rstrip() == '' or l.startswith('#'):
+                        yield l.rstrip()
+                        continue
+                    yield Package(os.path.join(self.relative_to, l.strip()))
+        except IOError: pass
+
+    @property
+    def packages(self):
+        return set(self.__pkgs)
+
+    @packages.setter
+    def packages(self, pkgs):
+        pkgs = set(pkgs)
+
+        for p in pkgs:
+            if not isinstance(p, Package):
+                raise TypeError('%r: Expected a Package' % (p,))
+
+        out = []
+        unrecorded = set(pkgs)
+
+        # Read the package file, preserve comments and remove old packages as
+        # needed.
+        for line_or_pkg in self._read_pkg_lines():
+            if isinstance(line_or_pkg, Package):
+                if line_or_pkg not in pkgs:
+                    # It was removed from the list; skip it
+                    continue
+                else:
+                    # It's already in the file; keep it
+                    unrecorded.remove(line_or_pkg)
+                    out.append(os.path.relpath(line_or_pkg.path, self.relative_to))
+            else:
+                out.append(line_or_pkg)
+
+        # Append anything new that wasn't mentioned in the file before.
+        out += sorted(set([os.path.relpath(p.path, self.relative_to)
+                           for p in unrecorded]))
+
+        # Write the file.
+        self.sys.update_file(self.path, "\n".join(out) + "\n")
+        self.__pkgs = set(pkgs)
 
 
 

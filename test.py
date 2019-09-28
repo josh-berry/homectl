@@ -95,7 +95,7 @@ def with_system(fn):
 def with_deployment(fn):
     def decorator(self):
         s = SilentSystem()
-        d = hc.Deployment(s, os.getcwd())
+        d = hc.Deployment(s, os.getcwd(), os.path.join(os.getcwd(), '.homectl'))
         fn(self, d)
     return decorator
 
@@ -297,7 +297,7 @@ class DeploymentTest(HomectlTest):
     #
 
     def enabled_list(self, d):
-        with open(d.enabled_list, 'r') as f:
+        with open(d.enabled_list.path, 'r') as f:
             return set([p.rstrip() for p in f.readlines()])
 
     def check_links(self, *lmap, **kw):
@@ -323,12 +323,6 @@ class DeploymentTest(HomectlTest):
     #
     # Test cases
     #
-
-    @with_deployment
-    def test_cfg_vars(self, d):
-        self.assertEqual(d.homedir, self.dir)
-        self.assertEqual(d.cfgdir, pj(self.dir, hc.CFG_DIR))
-        self.assertEqual(d.enabled_list, pj(d.cfgdir, hc.ENABLED_LIST))
 
     @with_deployment
     def test_add_package_updates_enabled_list(self, d):
