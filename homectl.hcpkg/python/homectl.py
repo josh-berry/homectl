@@ -32,7 +32,7 @@ VERSION = '0.3'
 CMD_NAME = 'hc'
 HOME = os.environ['HOME']
 CFG_DIR = os.environ.get('HOMECTL_DIR', os.path.join(HOME, '.homectl'))
-DEFAULT_HOMECTL_URL = "git://github.com/josh-berry/homectl.git"
+DEFAULT_HOMECTL_URL = "https://github.com/josh-berry/homectl.git"
 DEFAULT_HOMECTL_PKGS = ['homectl.hcpkg',
                         'loader-bash.hcpkg', 'loader-zsh.hcpkg']
 
