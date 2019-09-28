@@ -116,15 +116,6 @@ def sh_quote(text):
 
 
 
-class NeedsUpgrade(ValueError):
-    # Raised when the homectl setup or deployment needs to be upgraded using the
-    # "hc upgrade" command.
-    def __init__(self):
-        super(NeedsUpgrade, self).__init__(
-            "Please run '%s upgrade'." % CMD_NAME)
-
-
-
 class Package(object):
     # A Package represents a single homectl package.  Packages contain files for
     # specific "systems" and "hooks".  homectl packages are stored as
@@ -375,44 +366,8 @@ class Deployment(object):
 
         self.enabled_list = os.path.join(self.cfgdir, ENABLED_LIST)
 
-        if self.needs_upgrade:
-            self.sys.log_err("Your existing homectl needs to be upgraded.")
-            self.sys.log_err("Run '%s upgrade'." % CMD_NAME)
-
-    @property
-    def needs_upgrade(self):
-        return os.path.islink(self.cfgdir)
-
-    def _assert_current_ver(self):
-        if self.needs_upgrade:
-            raise NeedsUpgrade()
-
-    def upgrade(self):
-        if not self.needs_upgrade:
-            self.sys.log("No upgrade required.")
-            return
-
-        self._upgrade(os.path.realpath(self.cfgdir))
-
-    def _upgrade(self, old_cfg):
-        # Upgrade from homectl <= 0.2 to current
-        self.sys.log("")
-        self.sys.log("Upgrading from an older deployment in: %s" % old_cfg)
-        self.sys.log("")
-
-        self.sys.rm_link(self.cfgdir) # also clears self.needs_upgrade
-
-        paths = set()
-        for f, p in visible_links(old_cfg):
-            pkgpath = os.path.realpath(p)
-            self.sys.log("--- Found package: %s" % pkgpath)
-            paths.add(pkgpath)
-
-        self.packages = [Package(p) for p in paths]
-
     @property
     def packages(self):
-        self._assert_current_ver()
         try:
             with open(self.enabled_list, 'r') as f:
                 return set((Package(os.path.join(self.homedir, l.strip()))
@@ -423,8 +378,6 @@ class Deployment(object):
 
     @packages.setter
     def packages(self, pkgs):
-        self._assert_current_ver()
-
         # Run pre-removal triggers
         removing_pkgs = set(self.packages) - set(pkgs)
         for pkg in removing_pkgs: self.run_pkg_trigger(pkg, "disable")
@@ -440,16 +393,12 @@ class Deployment(object):
         for pkg in removing_pkgs: self.run_pkg_trigger(pkg, "clean")
 
     def hook_dirs(self, hook):
-        self._assert_current_ver()
-
         for s in self.sys.names:
             p = os.path.join(self.cfgdir, s, hook)
             if os.path.isdir(p):
                 yield p
 
     def hook_tree(self, hook, glob=None):
-        self._assert_current_ver()
-
         for d in self.hook_dirs(hook):
             for r, a in fs_tree(d):
                 if not glob or fnmatch.fnmatch(r, glob):
@@ -465,8 +414,6 @@ class Deployment(object):
                 return e.returncode
 
     def refresh(self):
-        self._assert_current_ver()
-
         # Run pre-refresh triggers so packages can create things in
         # homectl-visible directories if necessary.
         for p in self.packages:
@@ -578,7 +525,6 @@ def cmd_help(d, args):
 For help on individual commands, run "cmd --help".
 
     init
-    upgrade
 
     refresh
     uninstall
@@ -598,15 +544,11 @@ def cmd_init(d, argv):
     if len(argv) < 2 or argv[1].startswith('-'):
         print("""Usage: %s init PATH-TO-YOUR-GIT-REPO [URL]
 
-Create a new homectl setup, or upgrade an existing setup.
+Create a new homectl setup.
 
 Creates a new Git repository at the path you specify, and populates
 it with a copy of homectl and a helper script for deploying your
 setup on new machines.
-
-If there is already an older homectl setup at this location, the
-setup will be upgraded to be compatible with this version of
-homectl.
 
 You can optionally specify a URL to a homectl Git repo, and 'init'
 will use that repo instead of the default.  This is only useful if
@@ -614,8 +556,6 @@ you work on homectl itself.  Note that if you specify a local
 filesystem path for the URL, it must be an absolute path.
 """ % CMD_NAME)
         return
-
-    new_setup = False
 
     hc_url = DEFAULT_HOMECTL_URL
     if len(argv) > 2:
@@ -626,9 +566,6 @@ filesystem path for the URL, it must be an absolute path.
     readme = os.path.join(gitrepo, 'README.asciidoc')
     deploy_sh = os.path.join(gitrepo, 'deploy.sh')
 
-    # Stuff to migrate or delete
-    old_enable_d = os.path.join(gitrepo, 'enable.d')
-
     # Figure out what packages to enable by default
     cmd_tmpl = '$%(cmd)s enable %(pkg)s\n'
 
@@ -638,19 +575,12 @@ filesystem path for the URL, it must be an absolute path.
                     for p in DEFAULT_HOMECTL_PKGS]
 
     enable_cmds += ['\n# Your custom packages\n']
-    if os.path.isdir(old_enable_d):
-        for r, a in visible_links(old_enable_d):
-            pkg = os.readlink(a)
-            pkg = os.path.relpath(os.path.join(old_enable_d, pkg), gitrepo)
-            enable_cmds.append(cmd_tmpl % {'cmd': CMD_NAME, 'pkg': pkg})
-
     enable_cmd_str = ''.join(enable_cmds)
 
     # Setup the git repo
     if not os.path.isdir(gitrepo) or \
        not os.path.isdir(os.path.join(gitrepo, '.git')):
         d.sys.run('git', 'init', gitrepo)
-        new_setup = True
 
     if not os.path.isdir(os.path.join(gitrepo, 'homectl')):
         d.sys.run('git', 'submodule', 'add', hc_url, 'homectl',
@@ -725,58 +655,17 @@ git submodule update --init --recursive
     d.sys.run('chmod', 'a+x', deploy_sh)
     d.sys.run('git', 'add', os.path.basename(deploy_sh), cwd=gitrepo)
 
-    if os.path.isdir(old_enable_d):
-        d.sys.run('git', 'rm', '-r', os.path.basename(old_enable_d),
-                  cwd=gitrepo)
+    d.sys.run('git', 'commit', '--author', 'homectl <homectl@(none)>',
+              '-m', 'New homectl setup', cwd=gitrepo)
 
-    if new_setup:
-        d.sys.run('git', 'commit', '--author', 'homectl <homectl@(none)>',
-                  '-m', 'New homectl setup', cwd=gitrepo)
-
-        d.sys.log('')
-        d.sys.log('If you want to start using this homectl setup,')
-        d.sys.log('you should now run:')
-        d.sys.log('')
-        d.sys.log('    %s' % deploy_sh)
-        d.sys.log('')
-
-    else:
-        d.sys.run('git', 'commit', '--author', 'homectl <homectl@(none)>',
-                  '-m', 'Update homectl setup to version %s' % VERSION,
-                  cwd=gitrepo)
-
-        d.sys.log('')
-        d.sys.log('Your homectl setup has been upgraded.')
-        d.sys.log('')
+    d.sys.log('')
+    d.sys.log('If you want to start using this homectl setup,')
+    d.sys.log('you should now run:')
+    d.sys.log('')
+    d.sys.log('    %s' % deploy_sh)
+    d.sys.log('')
 
 commands['init'] = cmd_init
-
-def cmd_upgrade(d, argv):
-    if len(argv) > 1:
-        print("""Usage: %s upgrade
-
-Upgrades your ~/.homectl to use the latest version of homectl.
-This command does not upgrade your homectl setup (git repository);
-to do that, you must run the init command separately.
-""" % CMD_NAME)
-        return
-
-    enabled_path = os.path.realpath(d.cfgdir)
-    if os.path.basename(enabled_path) == 'enable.d':
-        git_repo_path = os.path.dirname(os.path.realpath(d.cfgdir))
-    else:
-        git_repo_path = '/path/to/your/git/repo'
-
-    d.upgrade()
-
-    d.sys.log('')
-    d.sys.log("If you haven't yet upgraded your existing git repo, please run:")
-    d.sys.log('')
-    d.sys.log('    %(cmd)s init %(path)s' % {
-        'cmd': CMD_NAME, 'path': git_repo_path})
-    d.sys.log('')
-
-commands['upgrade'] = cmd_upgrade
 
 def cmd_refresh(d, argv):
     if len(argv) > 1:
