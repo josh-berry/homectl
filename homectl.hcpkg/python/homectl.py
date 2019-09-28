@@ -586,6 +586,7 @@ For help on individual commands, run "cmd --help".
     list
     enable
     disable
+    set-enabled
 
     path
     find
@@ -818,6 +819,31 @@ List all enabled packages.
         print(p.path)
 commands['list'] = cmd_list
 commands['ls'] = cmd_list
+
+def cmd_set_enabled(d, argv):
+    if len(argv) != 1:
+        print("""Usage: %s set-enabled
+
+Changes the entire set of enabled packages to be the list on stdin,
+one package per line.  Packages which are currently enabled and do not
+appear in the list will be disabled; packages which appear in the list
+and are not enabled will be enabled.
+
+This command is intended for script-friendly use to bring your system
+into a known configuration; e.g.:
+
+    hc set-enabled <<EOF
+    homectl/homectl.hcpkg
+    my-package.hcpkg
+    ...
+    EOF
+
+A refresh is done automatically as part of the enable/disable process.
+""" % CMD_NAME)
+        return
+
+    d.packages = [Package(path.rstrip('\n')) for path in sys.stdin.readlines()]
+commands['set-enabled'] = cmd_set_enabled
 
 def cmd_enable(d, argv):
     if len(argv) <= 1 or argv[1].startswith('-'):
