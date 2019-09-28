@@ -814,7 +814,7 @@ List all enabled packages.
 """ % CMD_NAME)
         return
 
-    for p in d.packages:
+    for p in sorted(d.packages):
         print(p.path)
 commands['list'] = cmd_list
 commands['ls'] = cmd_list
