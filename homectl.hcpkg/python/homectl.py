@@ -299,6 +299,8 @@ class System(object):
         mkdirp(os.path.dirname(path))
         with open(path + '.tmp', 'w') as f:
             f.write(contents)
+            f.flush()
+            os.fsync(f)
         os.rename(path + '.tmp', path)
         # XXX Should make sure permissions, etc. match the old file
 
