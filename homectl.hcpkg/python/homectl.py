@@ -640,15 +640,8 @@ filesystem path for the URL, it must be an absolute path.
     deploy_sh = os.path.join(gitrepo, 'deploy.sh')
 
     # Figure out what packages to enable by default
-    cmd_tmpl = '$%(cmd)s enable %(pkg)s\n'
-
-    enable_cmds = ['# Default homectl packages\n']
-    enable_cmds += [cmd_tmpl % {'cmd': CMD_NAME,
-                                'pkg': os.path.join('homectl', p)}
-                    for p in DEFAULT_HOMECTL_PKGS]
-
-    enable_cmds += ['\n# Your custom packages\n']
-    enable_cmd_str = ''.join(enable_cmds)
+    default_pkgs_str = '\n'.join(
+        ['homectl/%s' % s for s in DEFAULT_HOMECTL_PKGS])
 
     # Setup the git repo
     if not os.path.isdir(gitrepo) or \
@@ -722,8 +715,13 @@ set -e
 
 git submodule update --init --recursive
 
-%(enable_cmds)s
-""" % {'cmd': CMD_NAME, 'enable_cmds': enable_cmd_str})
+$%(cmd)s set-enabled <<EOF
+# Default homectl packages:
+%(default_pkgs_str)s
+
+# Your homectl packages:
+EOF
+""" % {'cmd': CMD_NAME, 'default_pkgs_str': default_pkgs_str})
 
     d.sys.run('chmod', 'a+x', deploy_sh)
     d.sys.run('git', 'add', os.path.basename(deploy_sh), cwd=gitrepo)
