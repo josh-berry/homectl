@@ -525,12 +525,17 @@ class PackageListFile(object):
         # (comments, etc.) as strings.
         try:
             with open(self.path, 'r') as f:
-                for l in f.readlines():
-                    if l.rstrip() == '' or l.startswith('#'):
-                        yield l.rstrip()
-                        continue
-                    yield Package(os.path.join(self.relative_to, l.strip()))
+                for l in self.read_pkg_lines_from_fd(f, self.relative_to):
+                    yield l
         except IOError: pass
+
+    @staticmethod
+    def read_pkg_lines_from_fd(fd, relative_to):
+        for l in fd.readlines():
+            if l.rstrip() == '' or l.startswith('#'):
+                yield l.rstrip()
+                continue
+            yield Package(os.path.join(relative_to, l.strip()))
 
     @property
     def packages(self):
@@ -566,7 +571,11 @@ class PackageListFile(object):
                            for p in unrecorded]))
 
         # Write the file.
-        self.sys.update_file(self.path, "\n".join(out) + "\n")
+        if out:
+            self.sys.update_file(self.path, "\n".join(out) + "\n")
+        else:
+            self.sys.update_file(self.path, '')
+
         self.__pkgs = set(pkgs)
 
 
@@ -780,28 +789,42 @@ commands['list'] = cmd_list
 commands['ls'] = cmd_list
 
 def cmd_set_enabled(d, argv):
-    if len(argv) != 1:
-        print("""Usage: %s set-enabled
+    parser = OptionParser(
+        usage="""Usage: %(cmd)s set-enabled
 
-Changes the entire set of enabled packages to be the list on stdin,
-one package per line.  Packages which are currently enabled and do not
-appear in the list will be disabled; packages which appear in the list
-and are not enabled will be enabled.
+Changes the entire set of enabled packages to be the list on stdin, one
+package per line (ignoring #-comments and blank lines).  Packages which
+are currently enabled and do not appear in the list will be disabled;
+packages which appear in the list and are not enabled will be enabled.
 
 This command is intended for script-friendly use to bring your system
-into a known configuration; e.g.:
+into a known configuration; for example, assume the following is passed
+to stdin:
 
-    hc set-enabled <<EOF
+    # Built-in packages
     homectl/homectl.hcpkg
+
     my-package.hcpkg
+    another.package.hcpkg
     ...
-    EOF
 
-A refresh is done automatically as part of the enable/disable process.
-""" % CMD_NAME)
-        return
+Running `hc set-enabled` would set the entire set of enabled packages to
+the list above.  Any package NOT in the list would be disabled.
 
-    d.packages = [Package(path.rstrip('\n')) for path in sys.stdin.readlines()]
+A refresh is done automatically as part of the enable/disable process."""
+        % {'cmd': CMD_NAME})
+    options, args = parser.parse_args(argv)
+
+    if len(args) != 1:
+        parser.print_usage()
+        sys.exit(1)
+
+    pkgs = set((p
+                for p in PackageListFile.read_pkg_lines_from_fd(
+                        sys.stdin, os.getcwd())
+                if isinstance(p, Package)))
+
+    d.packages = pkgs
 commands['set-enabled'] = cmd_set_enabled
 
 def cmd_enable(d, argv):
