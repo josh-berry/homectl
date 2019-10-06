@@ -713,6 +713,7 @@ cd "$(dirname "$0")"
 
 set -e
 
+git submodule sync --recursive
 git submodule update --init --recursive
 
 $%(cmd)s set-enabled <<EOF
