@@ -168,6 +168,9 @@ class Package(object):
     def __ne__(self, other):
         return not (self == other)
 
+    def __lt__(self, other):
+        return os.path.realpath(self.path) < os.path.realpath(other.path)
+
     def __hash__(self):
         return hash(os.path.realpath(self.path))
 
