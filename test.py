@@ -87,6 +87,7 @@ class SilentSystem(hc.System):
 def with_system(fn):
     def decorator(self):
         s = SilentSystem()
+        #s = hc.ConsoleSystem()
         fn(self, s)
     return decorator
 
@@ -95,6 +96,7 @@ def with_system(fn):
 def with_deployment(fn):
     def decorator(self):
         s = SilentSystem()
+        #s = hc.ConsoleSystem()
         d = hc.Deployment(s, os.getcwd(), os.path.join(os.getcwd(), '.homectl'))
         fn(self, d)
     return decorator
@@ -459,12 +461,14 @@ class DeploymentTest(HomectlTest):
     def test_overlay_replaces_user_files_if_forced(self, d):
         self.mk_files('overlay.hcpkg', 'overlay/.mycfg')
         self.mk_files('.', '.mycfg')
-
-        d.packages = set([hc.Package('overlay.hcpkg')])
         self.assertTrue(os.path.exists('.mycfg'))
         self.assertFalse(os.path.islink('.mycfg'))
 
-        d.set_packages(set(), force_replace=True)
+        d.set_packages(set([hc.Package('overlay.hcpkg')]), force_replace=True)
+        self.assertTrue(os.path.exists('.mycfg'))
+        self.assertTrue(os.path.islink('.mycfg'))
+
+        d.packages = set()
         self.assertFalse(os.path.exists('.mycfg'))
 
     @with_deployment

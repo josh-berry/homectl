@@ -310,7 +310,6 @@ class System(object):
 
     def update_link(self, src, target):
         tgt_dir = os.path.dirname(target)
-        link_text = os.path.relpath(src, tgt_dir)
 
         if os.path.islink(target):
             if os.readlink(target) == src:
@@ -451,31 +450,36 @@ class Deployment(object):
                 if s == 'common' and h == 'overlay':
                     overlay_links.add(f)
 
-        # Remove any overlay links in ~ that don't match what we expect.  We
-        # discover overlay links by scanning $cfgdir/common/overlay (before
-        # removing anything from it), so we don't have to do a recursive scan of
-        # ~.
+        # Remove any overlay links in ~ that don't match files presently
+        # existing in an enabled homectl package.  We discover overlay links by
+        # scanning $cfgdir/common/overlay (before removing anything from it), so
+        # we don't have to do a recursive scan of ~.
         for rel, path in fs_files_in(overlay_path):
             home_path = os.path.join(self.homedir, rel)
 
-            # For each link in $cfgdir/common/overlay, we expect there to be a
-            # corresponding link from ~/... to $cfgdir/common/overlay/...
+            # Links we expect to ultimately be in the overlay should be left
+            # alone, as they will be updated later.
+            if rel in overlay_links: continue
 
-            # If this isn't true, leave the link in ~ alone.
-            if not os.path.islink(home_path):
-                if os.path.exists(home_path):
-                    if force_replace:
-                        self.sys.rm_tree(home_path)
-                    else:
-                        self.sys.log_warn("Won't touch existing file: %s"
-                                          % home_path)
-                        continue
+            # Do not remove anything in ~/... that is not a link...
+            if not os.path.islink(home_path): continue
 
-            if rel not in overlay_links:
-                # This is a stale overlay link; remove it
-                self.sys.rm_link(home_path)
+            # ...or is a link that is not pointing into the overlay.  We assume
+            # the user has manually changed these things.
+            dest = os.path.relpath(os.readlink(home_path),
+                                   os.path.dirname(home_path))
+            if os.path.commonprefix((dest, overlay_path)) != overlay_path:
+                continue
 
-        # Remove any link in the cfgdir that doesn't match what we expect.
+            # If we got this far, we have a link in ~/... which points into the
+            # overlay, AND that link is not part of the set of links we
+            # ultimately expect to have from ~ into the overlay.  So we should
+            # remove it.
+            self.sys.rm_link(home_path)
+
+        # Now that we have cleaned stale links out of ~, we can remove any link
+        # in the cfgdir that doesn't point to a file which presently exists
+        # inside an enabled homectl package.
         for rel, path in fs_files_in(self.cfgdir):
             if not os.path.islink(path): continue
             if rel not in link_map:
@@ -492,6 +496,11 @@ class Deployment(object):
             home_path = os.path.join(self.homedir, rel)
             cfg_path = os.path.join(overlay_path, rel)
             link_text = os.path.relpath(cfg_path, os.path.dirname(home_path))
+
+            if force_replace \
+                    and not os.path.islink(home_path) \
+                    and os.path.exists(home_path):
+                self.sys.rm_tree(home_path)
 
             self.sys.update_link(link_text, home_path)
 
