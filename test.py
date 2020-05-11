@@ -456,6 +456,18 @@ class DeploymentTest(HomectlTest):
         self.assertTrue(os.path.exists('.mycfg'))
 
     @with_deployment
+    def test_overlay_replaces_user_files_if_forced(self, d):
+        self.mk_files('overlay.hcpkg', 'overlay/.mycfg')
+        self.mk_files('.', '.mycfg')
+
+        d.packages = set([hc.Package('overlay.hcpkg')])
+        self.assertTrue(os.path.exists('.mycfg'))
+        self.assertFalse(os.path.islink('.mycfg'))
+
+        d.set_packages(set(), force_replace=True)
+        self.assertFalse(os.path.exists('.mycfg'))
+
+    @with_deployment
     def test_trigger_pwd(self, d):
         os.mkdir('trigger.hcpkg')
         # XXX This is a UNIX-ism

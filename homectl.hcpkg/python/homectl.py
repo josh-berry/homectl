@@ -14,6 +14,7 @@ import subprocess
 import collections
 from optparse import OptionParser, OptionGroup
 import fnmatch
+import shutil
 
 # If we are imported as a module, this is our API.
 __all__ = [
@@ -334,6 +335,15 @@ class System(object):
         else:
             self.log_warn("Can't unlink %s: Not a symbolic link" % path)
 
+    def rm_tree(self, path):
+        if os.path.exists(path):
+            self.log_cmd("rm", "-rf", path)
+            if not self.pretend:
+                if os.path.islink(path) or not os.path.isdir(path):
+                    os.unlink(path)
+                else:
+                    shutil.rmtree(path)
+
 
 
 class Deployment(object):
@@ -382,12 +392,15 @@ class Deployment(object):
 
     @packages.setter
     def packages(self, pkgs):
+        self.set_packages(pkgs)
+
+    def set_packages(self, pkgs, force_replace=False):
         # Run pre-removal triggers
         removing_pkgs = set(self.packages) - set(pkgs)
         for pkg in removing_pkgs: self.run_pkg_trigger(pkg, "disable")
 
         self.enabled_list.packages = pkgs
-        self.refresh()
+        self.refresh(force_replace=force_replace)
 
         # Run post-removal triggers
         for pkg in removing_pkgs: self.run_pkg_trigger(pkg, "clean")
@@ -413,7 +426,7 @@ class Deployment(object):
             except subprocess.CalledProcessError as e:
                 return e.returncode
 
-    def refresh(self):
+    def refresh(self, force_replace=False):
         # Run pre-refresh triggers so packages can create things in
         # homectl-visible directories if necessary.
         for p in self.packages:
@@ -451,9 +464,12 @@ class Deployment(object):
             # If this isn't true, leave the link in ~ alone.
             if not os.path.islink(home_path):
                 if os.path.exists(home_path):
-                    self.sys.log_warn("Won't touch existing file: %s"
-                                      % home_path)
-                continue
+                    if force_replace:
+                        self.sys.rm_tree(home_path)
+                    else:
+                        self.sys.log_warn("Won't touch existing file: %s"
+                                          % home_path)
+                        continue
 
             if rel not in overlay_links:
                 # This is a stale overlay link; remove it
@@ -719,7 +735,7 @@ set -e
 git submodule sync --recursive
 git submodule update --init --recursive
 
-$%(cmd)s set-enabled <<EOF
+$%(cmd)s set-enabled "$@" <<EOF
 # Default homectl packages:
 %(default_pkgs_str)s
 
@@ -743,16 +759,21 @@ EOF
 commands['init'] = cmd_init
 
 def cmd_refresh(d, argv):
-    if len(argv) > 1:
-        print("""Usage: %s refresh
+    parser = OptionParser("""Usage: %s refresh [options]
 
 Scans for any changes in your homectl packages, and ensures those
 changes are reflected in your home directory (e.g. creates/removes
-symlinks so that scripts and binaries appear in your path).
-""" % CMD_NAME)
-        return
+symlinks so that scripts and binaries appear in your path).""" % CMD_NAME)
+    parser.add_option('-f', '--force', dest='force',
+                      action='store_const', const=True,
+                      help="Replace any pre-existing files with homectl links")
+    options, args = parser.parse_args(argv)
 
-    d.refresh()
+    if len(args) != 1:
+        parser.print_usage()
+        sys.exit(1)
+
+    d.refresh(force_replace=options.force)
 commands['refresh'] = cmd_refresh
 commands['ref'] = cmd_refresh
 
@@ -792,7 +813,7 @@ commands['ls'] = cmd_list
 
 def cmd_set_enabled(d, argv):
     parser = OptionParser(
-        usage="""Usage: %(cmd)s set-enabled
+        usage="""Usage: %(cmd)s set-enabled [options]
 
 Changes the entire set of enabled packages to be the list on stdin, one
 package per line (ignoring #-comments and blank lines).  Packages which
@@ -815,6 +836,9 @@ the list above.  Any package NOT in the list would be disabled.
 
 A refresh is done automatically as part of the enable/disable process."""
         % {'cmd': CMD_NAME})
+    parser.add_option('-f', '--force', dest='force',
+                      action='store_const', const=True,
+                      help="Replace any pre-existing files with homectl links")
     options, args = parser.parse_args(argv)
 
     if len(args) != 1:
@@ -826,23 +850,30 @@ A refresh is done automatically as part of the enable/disable process."""
                         sys.stdin, os.getcwd())
                 if isinstance(p, Package)))
 
-    d.packages = pkgs
+    d.set_packages(pkgs, force_replace=options.force)
 commands['set-enabled'] = cmd_set_enabled
 
 def cmd_enable(d, argv):
-    if len(argv) <= 1 or argv[1].startswith('-'):
-        print("""Usage: %s enable PKG [PKG ...]
+    parser = OptionParser(
+        usage="""Usage: %s enable [options] PKG [PKG ...]
 
 Enables one or more packages, linking their contents into
 your home directory.
 
 If the package contains new shell aliases, changes to $PATH,
 etc., you will have to restart any affected programs to pick
-up the new features.
-""" % CMD_NAME)
-        return
+up the new features.""" % CMD_NAME)
+    parser.add_option('-f', '--force', dest='force',
+                      action='store_const', const=True,
+                      help="Replace any pre-existing files with homectl links")
+    options, args = parser.parse_args(argv)
 
-    d.packages = d.packages.union([Package(path) for path in argv[1:]])
+    if len(args) < 2:
+        parser.print_usage()
+        sys.exit(1)
+
+    d.set_packages(d.packages.union([Package(path) for path in argv[1:]]),
+                   force_replace=options.force)
 
 commands['enable'] = cmd_enable
 commands['en'] = cmd_enable
