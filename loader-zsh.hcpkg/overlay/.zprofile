@@ -2,7 +2,7 @@
 
 # This seems to be needed on modern Ubuntu systems which don't do this in their
 # system zsh init scripts...
-if [ -d /etc/profile.d ]; then
+if [[ -d /etc/profile.d && ( ! -f /etc/zsh/zprofile || -z "$(grep -v '^#' /etc/zsh/zprofile)" ) ]]; then
     # This weird find thing is to avoid zsh complaining about not being able to
     # expand globs if there are no files matching the glob.
     for f in $(find /etc/profile.d -maxdepth 1 -name '*.sh' -or -name '*.zsh'); do
