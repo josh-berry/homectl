@@ -255,39 +255,15 @@ class System(object):
     def log_cmd(self, *args):
         self.log('$ %s' % ' '.join([sh_quote(a) for a in args]))
 
-    def log_output(self, text):
-        self.log('  ... %s' % text)
-
     def log_warn(self, msg):
         self.log('!!! %s' % msg)
 
     def log_err(self, msg):
         self.log('!!! %s' % msg)
 
-    def run_and_readlines(self, *args, **opts):
-        # Runs the specified command; yields lines of output from the command's
-        # stdout/stderr (with trailing whitespace stripped, for convenience).
-        #
-        # On an error, or if the process exits with a non-zero status, raises
-        # subprocess.CalledProcessError.
-
-        self.log_cmd(*args)
-        proc = subprocess.Popen(args, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, close_fds=True,
-                                **opts)
-        with proc.stdout:
-            while True:
-                line = proc.stdout.readline()
-                if not line: break
-                self.log_output(line)
-                yield line.rstrip()
-
-        rc = proc.wait()
-        if rc != 0:
-            raise subprocess.CalledProcessError(rc, args)
-
     def run(self, *args, **opts):
-        for l in self.run_and_readlines(*args, **opts): pass
+        self.log_cmd(*args)
+        subprocess.run(args, **opts)
 
     def update_file(self, path, contents):
         self.log_cmd('update', path)

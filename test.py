@@ -259,15 +259,6 @@ class SystemTest(HomectlTest):
     # I'm not going to bother testing trivial functionality.
 
     @with_system
-    def test_run_and_readlines(self, s):
-        self.assertEqual(
-            list(s.run_and_readlines("echo", "Hello")),
-            [b"Hello"])
-        self.assertEqual(list(s.run_and_readlines("true")), [])
-        with self.assertRaises(subprocess.CalledProcessError):
-            for l in s.run_and_readlines("false"): pass
-
-    @with_system
     def test_update_file(self, s):
         s.update_file("foo", "bar")
         self.assertEqual(file_contents("foo"), "bar")
