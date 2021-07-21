@@ -7,17 +7,13 @@ PY := venv/bin/python
 PIP := venv/bin/pip
 COV := venv/bin/coverage
 
-test check: test-py3 test-py2
+test check: test-py3
 .PHONY: test check
 
 test-py3: $(PY) $(COV)
 	$(COV) run --branch ./test.py
 	$(COV) html
 .PHONY: test-py3
-
-test-py2:
-	python2.7 ./test.py
-.PHONY: test-py2
 
 $(COV): $(PY) $(PIP)
 	$(PIP) install coverage

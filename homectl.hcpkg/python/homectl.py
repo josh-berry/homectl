@@ -1,11 +1,4 @@
-#!/usr/bin/env python
-
-#
-# WARNING: This code is carefully written to work in both Python 2 AND Python 3,
-# since on some systems, "python" means the former, while on others, it means
-# the latter.  (Grumble, grumble, backward compatibility, etc.)  You may see
-# some rather strange idioms here for that reason.
-#
+#!/usr/bin/env python3
 
 import os
 import sys
