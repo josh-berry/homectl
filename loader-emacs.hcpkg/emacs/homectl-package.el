@@ -3,7 +3,6 @@
 ;;; This is in its own module so user homectl packages can just require it.
 
 (require 'package)
-(package-initialize)
 
 (defvar homectl-package-refreshed-recently-p nil)
 
